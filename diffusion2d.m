@@ -1,7 +1,7 @@
 %% Diffusion 2D
 
 %% Set up coordinate grid
-Npnts = 101;
+Npnts = 201;
 xvec = linspace(-5,5,Npnts);
 yvec = linspace(-5,5,Npnts);
 [xx, yy] = meshgrid(xvec,yvec);
@@ -63,7 +63,7 @@ Uy = reshape(Dymap,[],1);
 sigma = 1.0;
 HDiff = sigma^2 * (1/2 / dx ^2 * DDLpls - 1/2/ dx * (Dx * I .* Ux + Dy * I .* Uy)); 
 %%
-figure(10);set(gcf,'pos',[2000,200,800,400])
+figure(10);set(gcf,'pos',[200,200,800,400])
 tiledlayout(1,2,'padding','none','tilesp','none')
 nexttile(1)
 quiver(xx(1:4:end,1:4:end),yy(1:4:end,1:4:end),Dxmap(1:4:end,1:4:end),Dymap(1:4:end,1:4:end))
@@ -84,7 +84,7 @@ plot(real(diag(D)))
 ylabel("eigenvalue")
 xlabel("eigen id")
 %%
-figure(17);set(gcf,'pos',[2822          42        1080         955])
+figure(17);set(gcf,'pos',[-122          42        1080         955])
 tiledlayout(4,5,'padding','none','tilesp','none')
 for i = 1:20
 nexttile;
@@ -95,7 +95,7 @@ axis equal;axis off
 end
 
 %% Naive Convection-Diffusion Equation Solver
-dt = 0.002;
+dt = 0.0005;
 % Sparse points initial condition
 % xinit = zeros(nelem,1);%
 % xinit(randi(nelem,[50,1])) = 1;
