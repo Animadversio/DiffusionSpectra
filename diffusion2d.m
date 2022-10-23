@@ -76,8 +76,13 @@ axis image
 % imagesc(reshape(logdensity(xx(:),yy(:)),Npnts,Npnts))
 
 %%
-[V,D] = eigs(HDiff,20,0);
+[V,D] = eigs(HDiff,100,0);
 % diag(D)
+%%
+figure(18)
+plot(real(diag(D)))
+ylabel("eigenvalue")
+xlabel("eigen id")
 %%
 figure(17);set(gcf,'pos',[2822          42        1080         955])
 tiledlayout(4,5,'padding','none','tilesp','none')
