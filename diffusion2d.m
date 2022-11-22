@@ -41,10 +41,10 @@ gaussfun2d = @(x,y,mu,prec) sqrt(prec(1,1) * prec(2,2) - prec(2,1)^2) *...
                                 exp( -1/2*(   (x - mu(1)).^2 * prec(1,1) + ...
                                           2 * (x - mu(1)).*(y - mu(2)) * prec(1,2) + ...
                                               (y - mu(2)).^2 * prec(2,2)));
-mu1 = [ 1, 1];
-mu2 = [-1,-1];
-prec1 = [[5,0.5];[0.5,0.5]];
-prec2 = [[1,-1];[-1,2]];
+mu1 = [ 0.1, 0.1];
+mu2 = [-0.5,-0.5];
+prec1 = [[5,2];[2,2]];
+prec2 = [[2,-1];[-1,4]];
 density = @(x,y) 0.5 * gaussfun2d(x,y,mu1,prec1) + ...
                  0.5 * gaussfun2d(x,y,mu2,prec2);
                     
@@ -62,6 +62,15 @@ Uy = reshape(Dymap,[],1);
 %% Diffusion operator 
 sigma = 1.0;
 HDiff = sigma^2 * (1/2 / dx ^2 * DDLpls - 1/2/ dx * (Dx * I .* Ux + Dy * I .* Uy)); 
+HDiff = sigma^2 * (1/2 / dx ^2 * DDLpls - 1/2/ dx * (Dx * I .* Ux + Dy * I .* Uy));
+%%
+figure(12);set(gcf,'pos',[2000,200,800,400])
+tiledlayout(1,2,'padding','none','tilesp','none')
+nexttile(1)
+imagesc(xvec,yvec,density(xx,yy));
+nexttile(2)
+imagesc(xvec,yvec,reshape(HDiff*reshape(density(xx,yy),[],1),Npnts,Npnts));
+axis image
 %%
 figure(10);set(gcf,'pos',[2000,200,800,400])
 tiledlayout(1,2,'padding','none','tilesp','none')
@@ -101,10 +110,10 @@ dt = 0.002;
 % xinit(randi(nelem,[50,1])) = 1;
 
 % Random field initial condition
-% xinit = rand(nelem,1);
+xinit = rand(nelem,1);
 
 % Gaussian field initial condition
-xinit = gaussfun2d(xx(:),yy(:),[0,0],[[0.1,0];[0,0.1]]);
+% xinit = gaussfun2d(xx(:),yy(:),[0,0],[[0.1,0];[0,0.1]]);
 xcur = gpuArray(xinit);
 figure(1)
 for iT = 0:2000
