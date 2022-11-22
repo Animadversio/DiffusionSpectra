@@ -1,7 +1,8 @@
-%% Diffusion 2D
+%% Spectrum of Time dependent Diffusion operator 
+
 
 %% Set up coordinate grid
-Npnts = 201;
+Npnts = 101;
 xvec = linspace(-5,5,Npnts);
 yvec = linspace(-5,5,Npnts);
 [xx, yy] = meshgrid(xvec,yvec);
@@ -30,24 +31,42 @@ Dx     = (S_ijpls - S_ijmns) / 2;
 Dy     = (S_iplsj - S_imnsj) / 2;
 I      = speye(nelem);
 % S = sparse(i,j,v,nelem,nelem);
-%% Constant velocity field 
-sigma = 0.3;
-Ux = 0.5; Uy = 0.5;
-HDiff = 1/2 * sigma^2 / dx ^2 * DDLpls + 1 / dx * (Dx * I .* Ux + Dy * I .* Uy); 
 %%
-[Ulpls,Dlpls] = eigs(DDLpls, 10);
 %% Define Potential field and score function
 gaussfun2d = @(x,y,mu,prec) sqrt(prec(1,1) * prec(2,2) - prec(2,1)^2) *...
                                 exp( -1/2*(   (x - mu(1)).^2 * prec(1,1) + ...
                                           2 * (x - mu(1)).*(y - mu(2)) * prec(1,2) + ...
                                               (y - mu(2)).^2 * prec(2,2)));
-mu1 = [ 0.1, 0.1];
-mu2 = [-0.5,-0.5];
-prec1 = [[5,2];[2,2]];
-prec2 = [[2,-1];[-1,4]];
-density = @(x,y) 0.5 * gaussfun2d(x,y,mu1,prec1) + ...
-                 0.5 * gaussfun2d(x,y,mu2,prec2);
+mu1 = [ 1, 1];
+mu2 = [-1,-1];
+% prec1 = [[1,0];[0.5,0.5]];
+% prec2 = [[1,-1];[-1,2]];
+% sigma = 0.5;
+figdir = "E:\OneDrive - Harvard University\DiffusionSpectralTheory\Simulation\TDDiffSpectra_2";
+mkdir(figdir)
+for T = [0:0.05:3]
+% T = 0;
+sigma = 0.2 * exp(T); % too small is unstable
+beta = 1/sigma^2;
+% density = @(x,y) 0.5 * gaussfun2d(x,y,[2,0],beta*eye(2)) + ...
+%                  0.5 * gaussfun2d(x,y,[0,2],beta*eye(2)) + ...
+%                  0.5 * gaussfun2d(x,y,[-2,0],beta*eye(2)) + ...
+%                  0.5 * gaussfun2d(x,y,[0,-2],beta*eye(2)) + ...
+%                  0.5 * gaussfun2d(x,y,[1.4,1.4],beta*eye(2)) + ...
+%                  0.5 * gaussfun2d(x,y,[-1.4,-1.4],beta*eye(2));
                     
+% density = @(x,y) 0.5 * gaussfun2d(x,y,[2,0],beta*eye(2)) + ...
+%                  0.5 * gaussfun2d(x,y,[0,2],beta*eye(2)) + ...
+%                  0.5 * gaussfun2d(x,y,[-2,0],beta*eye(2)) + ...
+%                  0.5 * gaussfun2d(x,y,[0,-2],beta*eye(2)) + ...
+%                  0.5 * gaussfun2d(x,y,[.6,.6],beta*eye(2)) + ...
+%                  0.5 * gaussfun2d(x,y,[-.6,-.6],beta*eye(2));
+density = @(x,y) 0.5 * gaussfun2d(x,y,[2,0],beta*eye(2)) + ...
+                 0.5 * gaussfun2d(x,y,[0,2],beta*eye(2)) + ...
+                 0.5 * gaussfun2d(x,y,[-2,0],beta*eye(2)) + ...
+                 0.5 * gaussfun2d(x,y,[0,-2],beta*eye(2)) + ...
+                 0.5 * gaussfun2d(x,y,[1,1],beta*eye(2)) + ...
+                 0.5 * gaussfun2d(x,y,[-1,-1],beta*eye(2));
 % density = @(x,y) 0.3 * gaussfun2d(x,y,mu1,prec1);% + ...
 % %                         0.7 * gaussfun2d(x,y,mu2,prec2);
 logdensity = @(x,y) log(density(x,y));
@@ -60,20 +79,11 @@ Ux = reshape(Dxmap,[],1);
 Uy = reshape(Dymap,[],1);
 
 %% Diffusion operator 
-sigma = 1.0;
-HDiff = sigma^2 * (1/2 / dx ^2 * DDLpls - 1/2/ dx * (Dx * I .* Ux + Dy * I .* Uy)); 
-HDiff = sigma^2 * (1/2 / dx ^2 * DDLpls - 1/2/ dx * (Dx * I .* Ux + Dy * I .* Uy));
-%%
-figure(12);set(gcf,'pos',[2000,200,800,400])
-tiledlayout(1,2,'padding','none','tilesp','none')
-nexttile(1)
-imagesc(xvec,yvec,density(xx,yy));
-nexttile(2)
-imagesc(xvec,yvec,reshape(HDiff*reshape(density(xx,yy),[],1),Npnts,Npnts));
-axis image
-%%
+% sigma = 1.0;
+HDiff = 1 * (1/2 / dx ^2 * DDLpls - 1/2/ dx * (Dx * I .* Ux + Dy * I .* Uy)); 
+
 figure(10);set(gcf,'pos',[200,200,800,400])
-tiledlayout(1,2,'padding','none','tilesp','none')
+T2 = tiledlayout(1,2,'padding','none','tilesp','none');
 nexttile(1)
 quiver(xx(1:4:end,1:4:end),yy(1:4:end,1:4:end),Dxmap(1:4:end,1:4:end),Dymap(1:4:end,1:4:end))
 set(gca,"ydir",'reverse')
@@ -81,66 +91,36 @@ axis image
 nexttile(2)
 imagesc(xvec,yvec,density(xx,yy));
 axis image
-% imagesc(density(xx,yy));axis image
-% imagesc(reshape(logdensity(xx(:),yy(:)),Npnts,Npnts))
+title(T2,compose("T=%.1f sigma=%.1f",T,sigma));
 
-%%
-[V,D] = eigs(HDiff,100,0);
-% diag(D)
-%%
-figure(18)
-plot(real(diag(D)))
-ylabel("eigenvalue")
-xlabel("eigen id")
-%%
-figure(17);set(gcf,'pos',[-122          42        1080         955])
-tiledlayout(4,5,'padding','none','tilesp','none')
+[V,D] = eigs(HDiff,80,0.1);
+eigvals = diag(D);
+save(fullfile(figdir,compose("eigenmodes_T%.2f.mat",T)),'V','eigvals')
+figure(17);set(17,'pos',[10          32        1080         955])
+T1 = tiledlayout(4,5,'padding','none','tilespacing','none');
 for i = 1:20
-nexttile;
-sgn = sign(abs(max(V(:,i)))-abs(min(V(:,i))));
-imagesc(sgn * reshape(V(:,i),Npnts,Npnts));
-title(D(i,i))
+nexttile(T1,i);
+eigmode = real(V(:,i));
+sgn = sign(abs(max(eigmode))-abs(min(eigmode)));
+imagesc(sgn * reshape(eigmode,Npnts,Npnts));
+title(compose("%.5f",D(i,i)))
 axis equal;axis off
 end
+title(T1,compose("T=%.1f sigma=%.1f",T,sigma))
 
-%% Naive Convection-Diffusion Equation Solver
-dt = 0.0005;
-% Sparse points initial condition
-% xinit = zeros(nelem,1);%
-% xinit(randi(nelem,[50,1])) = 1;
+figure(18);clf
+plot(real(diag(D)))
+hline(real(diag(D)), 'r:')
+ylabel("eigenvalue")
+xlabel("eigen id")
+title(compose("T=%.1f sigma=%.1f",T,sigma))
 
-% Random field initial condition
-xinit = rand(nelem,1);
-
-% Gaussian field initial condition
-% xinit = gaussfun2d(xx(:),yy(:),[0,0],[[0.1,0];[0,0.1]]);
-xcur = gpuArray(xinit);
-figure(1)
-for iT = 0:2000
-    xcur = xcur + dt * HDiff * xcur; %Dx / dx
-    imagesc(reshape(xcur,Npnts,Npnts))
-    title(iT);axis image
-    colorbar
-    pause(0.001)
+saveas(10,fullfile(figdir, compose("potentialField_%.2f.png",T)))
+saveas(17,fullfile(figdir, compose("eigenspectra_%.2f.png",T)))
+saveas(18,fullfile(figdir, compose("eigenmodes_%.2f.png",T)))
 end
-%%
 
-%% Naive Stupid Wave Equation Solver
-dt = 0.02;
-% xinit = zeros(nelem,1);%
-% xinit(randi(nelem,[10,1])) = 1;
-xinit = rand(nelem,1);
-xcur = xinit;
-vcur = zeros(nelem,1);
-figure(1);axis image
-for iT = 0:1000
-    vcur = vcur + dt * HDiff * xcur;
-    xcur = xcur + dt * vcur; %Dx / dx
-    imagesc(reshape(xcur,Npnts,Npnts))
-    title(iT)
-    colorbar
-    pause(0.05)
-end
+
 function [mapidv,origidv] = rolcol2linear_idx(Npnts,rowidv,colidv,do_wrap)
 % input a Npnts x Npnts length vectors rowidv and colidv
 % 
@@ -155,14 +135,5 @@ valmsk = (rowidv > 0) & (rowidv <= Npnts) & ...
          (colidv > 0) & (colidv <= Npnts); 
 origidv  = find(valmsk); % linear id of i, j 
 end
-mapidv = sub2ind([Npnts,Npnts],rowidv(valmsk),colidv(valmsk)); % linear id of i, j + 1
-end
-
-function [mapidv,origidv] = rolcol2modlinear_idx(Npnts,rowidv,colidv)
-% input a Npnts x Npnts length vectors rowidv and colidv
-% 
-valmsk = (rowidv > 0) & (rowidv <= Npnts) & ...
-         (colidv > 0) & (colidv <= Npnts); 
-origidv  = find(valmsk); % linear id of i, j 
 mapidv = sub2ind([Npnts,Npnts],rowidv(valmsk),colidv(valmsk)); % linear id of i, j + 1
 end
