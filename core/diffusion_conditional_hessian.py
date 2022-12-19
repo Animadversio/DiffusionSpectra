@@ -1,14 +1,13 @@
-import matplotlib.pyplot as plt
 import torch
-from diffusers import StableDiffusionPipeline
+from tqdm import tqdm
+import matplotlib.pyplot as plt
+from diffusers import StableDiffusionPipeline  #, EulerDiscreteScheduler
 
-from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler
-
-pipeline = StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4", torch_dtype=torch.float16)
-pipeline = pipeline.to("cuda")
-# pipeline = StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4")
-pipeline.scheduler = EulerDiscreteScheduler.from_config(pipeline.scheduler.config)
-pipeline.scheduler.set_timesteps(num_inference_steps=50)
+# pipeline = StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4", torch_dtype=torch.float16)
+# pipeline = pipeline.to("cuda")
+# # pipeline = StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4")
+# pipeline.scheduler = EulerDiscreteScheduler.from_config(pipeline.scheduler.config)
+# pipeline.scheduler.set_timesteps(num_inference_steps=50)
 #%%
 pipe = StableDiffusionPipeline.from_pretrained(
     "runwayml/stable-diffusion-v1-5",
@@ -18,14 +17,14 @@ pipe = StableDiffusionPipeline.from_pretrained(
 pipe = pipe.to("cuda")
 pipe.enable_attention_slicing()
 #%%
-pipe = pipeline
+# pipe = pipeline
 pipe.text_encoder.requires_grad_(False)
 pipe.unet.requires_grad_(False)
 pipe.vae.requires_grad_(False)
 # pipeline.to(torch.half)
 #%%
 # with torch.autocast("cuda"):
-out = pipeline("a cute and classy mice wearing dress and heels", )
+out = pipe("a cute and classy mice wearing dress and heels", )
 out.images[0].show()
 #%%
 out.images[0].save("cute_classy_mice.png")
@@ -119,11 +118,11 @@ image = generate_simplified(
 # plt_show_image(image[0])
 
 #%%
-prompt = ["a lovely cat"]
+prompt = ["a cute and classy mice wearing dress and heels"]
 text_inputs = pipe.tokenizer(
     prompt,
     padding="max_length",
-    max_length=10, #pipe.tokenizer.model_max_length,
+    max_length=pipe.tokenizer.model_max_length,
     return_tensors="pt",
 )
 text_input_ids = text_inputs.input_ids
@@ -145,7 +144,6 @@ emb_grad_batch = torch.autograd.grad(noise_pred.flatten(), text_embeddings_req,
                     retain_graph=True, is_grads_batched=True, )[0]
 torch.cuda.empty_cache()
 #%%
-from tqdm import tqdm
 #%%
 EPS = 1e-3
 Hess = []
@@ -164,19 +162,17 @@ Hess = torch.stack(Hess, dim=1)
 #%%
 U, eig = torch.linalg.eig(Hess.float()+Hess.float().T)
 #%%
-import matplotlib.pyplot as plt
 plt.semilogy(U.real)
 plt.show()
+
 #%%
 emb_grad_batch = torch.autograd.grad(noise_pred.flatten(), text_embeddings_req,
                     grad_outputs=torch.eye(input_dim, device="cuda", dtype=torch.half)[:4, :],
                     retain_graph=True, is_grads_batched=True, )[0]
 torch.cuda.empty_cache()
 
+#%%  Hessian of a vector in conditional vectors
 
-
-
-#%% Hessian
 perturb_emb = torch.zeros(768, device=pipe.device, dtype=text_embeddings.dtype).requires_grad_(True)
 text_embeddings_req = text_embeddings.detach().clone()
 text_embeddings_req[0, 3, :] += perturb_emb
@@ -187,5 +183,15 @@ D2 = ((noise_pred - noise_pred.detach())**2).sum()
 grad_0 = torch.autograd.grad(D2, perturb_emb, retain_graph=True, create_graph=True)[0]
 torch.cuda.empty_cache()
 #%%
-hess_1 = torch.autograd.grad(grad_0[0], perturb_emb, retain_graph=True, )[0]
-
+#%%
+hess_mat = []
+for i in tqdm(range(len(grad_0))):
+    hess_1 = torch.autograd.grad(grad_0[i], perturb_emb, retain_graph=True, )[0]
+    hess_mat.append(hess_1.detach().clone().cpu())
+    torch.cuda.empty_cache()
+hess_mat = torch.stack(hess_mat, dim=1)
+#%
+eigval, eigvec = torch.linalg.eig(hess_mat.float() + hess_mat.float().T)
+#%%
+plt.semilogy(eigval)
+plt.show()
