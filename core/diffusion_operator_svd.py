@@ -1,3 +1,6 @@
+"""Solving Jacobian of diffusion unet using
+ diffusion operator svd decomposition
+"""
 import torch
 from tqdm import tqdm
 from diffusers import PNDMPipeline, DDIMScheduler, UNet2DModel
@@ -11,10 +14,11 @@ model.requires_grad_(False).eval().half().to("cuda")
 scheduler = DDIMScheduler.from_pretrained(repo_id)
 # scheduler = PNDMScheduler.from_pretrained(model_id)
 scheduler.set_timesteps(num_inference_steps=50)
-#%%
+
 #%%
 import numpy as np
 from scipy.sparse.linalg import svds, eigs, LinearOperator
+
 class JacobianVectorProduct_bp(LinearOperator):
 
     def __init__(self, model, t, sample, ):
