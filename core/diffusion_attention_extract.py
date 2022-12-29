@@ -1,3 +1,5 @@
+"""Record the attention patterns from a Diffusion model with cross attention control
+"""
 import os
 from os.path import join
 import numpy as np
@@ -6,6 +8,7 @@ from tqdm import tqdm
 import seaborn as sns
 import matplotlib.pyplot as plt
 from diffusers import StableDiffusionPipeline  #, EulerDiscreteScheduler
+
 
 exproot = r"/home/binxuwang/insilico_exp/Diffusion_AttnMap/StableDiffusion"
 pipe = StableDiffusionPipeline.from_pretrained(
