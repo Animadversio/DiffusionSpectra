@@ -1,3 +1,4 @@
+import json
 import os
 from os.path import join
 import torch
@@ -109,6 +110,11 @@ def compute_save_diff_imgs(savedir, step_list, latents_reservoir):
 
 compute_save_diff_imgs(savedir, range(0, 21, 2), latents_reservoir)
 #%%
+compute_save_diff_imgs(savedir, range(0, 16, 1), latents_reservoir)
+#%%
+torch.save(latents_reservoir, join(savedir, "latents_reservoir.pt"))
+# json.dump({"prompt": text})
+#%%
 def plot_diff_matrix(savedir, step_list, diff_x_sfx="", step_x_sfx="", save_sfx="", tril=True):
     """
 
@@ -161,9 +167,165 @@ plot_diff_matrix(savedir, range(0, 21, 2),
                  diff_x_sfx="_vae_decode_stdfinal", step_x_sfx="_vae_decode", save_sfx="_vae_decode_stdfinal_early0-20")
 plot_diff_matrix(savedir, range(0, 21, 2),
                  diff_x_sfx="_latent_stdnorm", step_x_sfx="_latent_stdnorm", save_sfx="_latent_stdnorm_early0-20")
+#%%
+plot_diff_matrix(savedir, range(0, 16, 1),
+                 diff_x_sfx="_vae_decode", step_x_sfx="_vae_decode", save_sfx="_vae_decode_early0-15")
+plot_diff_matrix(savedir, range(0, 16, 1),
+                 diff_x_sfx="_vae_decode_stdfinal", step_x_sfx="_vae_decode", save_sfx="_vae_decode_stdfinal_early0-15")
+plot_diff_matrix(savedir, range(0, 16, 1),
+                 diff_x_sfx="_latent_stdnorm", step_x_sfx="_latent_stdnorm", save_sfx="_latent_stdnorm_early0-15")
+
+#%%
+""" Correlogram of the latent state difference """
+import seaborn as sns
+from torchmetrics.functional import pairwise_cosine_similarity
+def diff_lag(x, lag=1, ):
+    assert lag >= 1
+    return x[lag:] - x[:-lag]
 
 
+def avg_cosine_sim_mat(X):
+    cosmat = pairwise_cosine_similarity(X,)
+    idxs = torch.tril_indices(cosmat.shape[0], cosmat.shape[1], offset=-1)
+    cosmat_vec = cosmat[idxs[0], idxs[1]]
+    return cosmat, cosmat_vec.mean()
 
+
+cosmat, cosmat_avg = avg_cosine_sim_mat(latents_reservoir.flatten(1).float())
+plt.figure()
+sns.heatmap(cosmat, cmap="coolwarm", vmin=-1, vmax=1)
+plt.title(f"cosine similarity matrix of latent states, avg={cosmat_avg:.3f}")
+plt.show()
+#%%
+cosmat, cosmat_avg = avg_cosine_sim_mat(latents_reservoir.flatten(1).float())
+#%%
+for lag in [1, 2, 3, 4, 5, 10]:
+    cosmat, cosmat_avg = avg_cosine_sim_mat(diff_lag(latents_reservoir, lag).flatten(1).float())
+    figh = plt.figure(figsize=(7, 6))
+    sns.heatmap(cosmat, cmap="coolwarm", vmin=-1, vmax=1)
+    plt.axis("image")
+    plt.title(f"cosine similarity matrix of latent states diff z_t+{lag} - z_t\n avg cosine={cosmat_avg:.3f} lag={lag}")
+    plt.xlabel("t1")
+    plt.ylabel("t2")
+    saveallforms(savedir, f"cosine_mat_latent_diff_lag{lag}", figh)
+    plt.show()
+#%%
+for lag in [1, 2, 3, 4, 5, 10]:
+    cosvec_end = pairwise_cosine_similarity(diff_lag(latents_reservoir, lag).flatten(1).float(),
+                                        latents_reservoir[-1:].flatten(1).float())
+    cosvec_init = pairwise_cosine_similarity(diff_lag(latents_reservoir, lag).flatten(1).float(),
+                                        latents_reservoir[:1].flatten(1).float())
+    figh = plt.figure()
+    plt.plot(cosvec_end, label="with end z_T")
+    plt.plot(cosvec_init, label="with init z_0")
+    plt.axhline(0, color="k", linestyle="--")
+    plt.title(f"cosine similarity of latent states diff z_t+{lag} - z_t with z_0, z_T")
+    plt.xlabel("t")
+    plt.ylabel("cosine similarity")
+    plt.legend()
+    saveallforms(savedir, f"cosine_trace_w_init_end_latent_diff_lag{lag}", figh)
+    plt.show()
+#%%
+""" Geometry of latent space evolution in the subspace spanned by the initial state and final states """
+init_latent = latents_reservoir[:1].flatten(1).float()
+end_latent = latents_reservoir[-1:].flatten(1).float()
+proj_coef_init = torch.matmul(latents_reservoir.flatten(1).float(), init_latent.T) / torch.norm(init_latent)**2
+proj_coef_end = torch.matmul(latents_reservoir.flatten(1).float(), end_latent.T) / torch.norm(end_latent)**2
+plt.figure()
+plt.plot(proj_coef_init, label="with init z_0")
+plt.plot(proj_coef_end, label="with end z_T")
+plt.axhline(0, color="k", linestyle="--")
+plt.title(f"projection of latent states diff z_t+{lag} - z_t with z_T")
+plt.xlabel("t")
+plt.ylabel("projection")
+plt.legend()
+plt.show()
+#%
+plt.figure()
+plt.scatter(proj_coef_init, proj_coef_end, label="latent trajectory")
+plt.axhline(0, color="k", linestyle="--")
+plt.axvline(0, color="k", linestyle="--")
+plt.xlabel("projection with z_0")
+plt.ylabel("projection with z_T")
+plt.title("latent trajectory in 2d proejction space")
+plt.show()
+#%%
+(proj_coef_init @ init_latent + proj_coef_end @ end_latent).norm(dim=1, keepdim=True) ** 2 / \
+    latents_reservoir.flatten(1).float().norm(dim=1, keepdim=True)**2
+#%%
+def proj2subspace(A,b):
+    return (A.T@torch.linalg.inv(A@A.T)@A@b.T).T
+
+
+def proj2orthospace(A, b):
+    return b - (A.T@torch.linalg.inv(A@A.T)@A@b.T).T
+
+
+# proj2subspace(init_latent, latents_reservoir.flatten(1).float())
+latents_proj = proj2subspace(torch.cat((init_latent, end_latent)),
+              latents_reservoir.flatten(1).float())
+latents_proj_out = proj2orthospace(torch.cat((init_latent, end_latent)),
+              latents_reservoir.flatten(1).float())
+latents_proj_out_noise = proj2orthospace(init_latent,
+              latents_reservoir.flatten(1).float())
+#%%
+latents_proj.norm(dim=1) ** 2 / latents_reservoir.flatten(1).float().norm(dim=1) ** 2
+#%%
+latents_proj_out.norm(dim=1) ** 2 / latents_reservoir.flatten(1).float().norm(dim=1) ** 2
+#%%
+proj_img = latents_to_image(latents_proj.reshape(latents_reservoir.shape).half()[5:6], pipe)
+show_imgrid(proj_img)
+#%%
+proj_img = latents_to_image(30*latents_proj_out_noise.reshape(latents_reservoir.shape).half()[2:3], pipe)
+show_imgrid(proj_img)
+#%%
+"""plot latent space trajectory on the 2d plane spanned by the initial and final states"""
+
+unitbasis1 = end_latent / end_latent.norm()  # end state
+unitbasis2 = proj2orthospace(end_latent, init_latent)  # init noise that is ortho to the end state
+unitbasis2 = unitbasis2 / unitbasis2.norm()  # unit normalize
+proj_coef1 = torch.matmul(latents_reservoir.flatten(1).float(), unitbasis1.T)
+proj_coef2 = torch.matmul(latents_reservoir.flatten(1).float(), unitbasis2.T)
+residue = latents_reservoir.flatten(1).float() - (proj_coef1 @ unitbasis1 + proj_coef2 @ unitbasis2)
+residue_frac = residue.norm(dim=1) ** 2 / latents_reservoir.flatten(1).float().norm(dim=1) ** 2
+
+plt.figure()
+plt.plot([0, proj_coef1[0].item()], [0, proj_coef2[0].item()], label="noise init", color="r")
+plt.plot([0, proj_coef1[-1].item()], [0, proj_coef2[-1].item()], label="final latent", color="g")
+plt.scatter(proj_coef1, proj_coef2, label="latent trajectory")
+plt.axhline(0, color="k", linestyle="--", lw=0.5)
+plt.axvline(0, color="k", linestyle="--", lw=0.5)
+plt.legend()
+plt.xlabel("projection with z_T")
+plt.ylabel("projection with ortho part of z_0")
+plt.title("latent trajectory in 2d projection space (z0,zT)")
+saveallforms(savedir, f"latent_trajectory_2d_proj", plt.gcf())
+plt.show()
+#%%
+"""There is little variance outside the subspace spanned by the initial and final states"""
+plt.figure()
+plt.plot(residue_frac)
+plt.title("fraction of residue ortho to the 2d subspace spanned by z_0 and z_T")
+plt.xlabel("t")
+plt.ylabel("fraction of var")
+saveallforms(savedir, f"latent_trajectory_2d_proj_residue_trace", plt.gcf())
+plt.show()
+#%%
+"""The geometry of the differences"""
+plt.figure()
+plt.scatter(proj_coef1[1:]-proj_coef1[:-1], proj_coef2[1:]-proj_coef2[:-1], c=range(50), label="latent diff")
+plt.plot(proj_coef1[1:]-proj_coef1[:-1], proj_coef2[1:]-proj_coef2[:-1], color="k", alpha=0.5)
+plt.axhline(0, color="k", linestyle="--", lw=0.5)
+plt.axvline(0, color="k", linestyle="--", lw=0.5)
+plt.axline((0, 0), slope=proj_coef2[0].item() / proj_coef1[0].item(),
+           color="r", linestyle="--", label="init noise direction")
+plt.legend()
+plt.axis("equal")
+plt.xlabel("projection with z_T")
+plt.ylabel("projection with ortho part of z_0")
+plt.title("latent diff (z_t+1 - z_t) in 2d projection space (z0,zT)")
+saveallforms(savedir, f"latent_diff_2d_proj", plt.gcf())
+plt.show()
 
 #%% dev zone
 diff_x_sfx = "_latent_stdnorm"
@@ -182,11 +344,13 @@ for i, stepi in enumerate([*range(0, 51, 5)]):
         axs[i + 1, j].set_title(f"{stepj}-{stepi}")
 
 for i, stepi in enumerate([*range(0, 51, 5)]):
-    axs[0, i,].imshow(plt.imread(join(savedir, f"diffusion_step_{stepi:02d}{step_x_sfx}.png")))
-    axs[0, i,].set_title(f"t={stepi}")
+    axs[0, i, ].imshow(plt.imread(join(savedir, f"diffusion_step_{stepi:02d}{step_x_sfx}.png")))
+    axs[0, i, ].set_title(f"t={stepi}")
 
 plt.suptitle("x difference along Trajectories", fontsize=16)
 plt.tight_layout()
 saveallforms(savedir, f"diffusion_traj_diff_mtg{diff_x_sfx}", figh)
 plt.show()
+
+
 
