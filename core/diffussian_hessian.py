@@ -1,6 +1,7 @@
 import torch
 from tqdm import tqdm
-from diffusers import PNDMPipeline, DDIMScheduler, UNet2DModel
+from diffusers import PNDMPipeline, DDIMScheduler, UNet2DModel, PNDMScheduler
+from diffusers import DDPMPipeline, DDIMPipeline, DDPMScheduler
 
 import os
 from os.path import join
@@ -34,10 +35,10 @@ def visualize_tensor(tsr):
 
 
 # computation code
-def sampling(model, scheduler, ):
+def sampling(model, scheduler, batch_size=1):
     noisy_sample = torch.randn(
-        1, model.config.in_channels, model.config.sample_size, model.config.sample_size
-    ).to(model.device).half()
+        batch_size, model.config.in_channels, model.config.sample_size, model.config.sample_size
+    ).to(model.device).to(model.dtype)
     t_traj, sample_traj, = [], []
     sample = noisy_sample
 
@@ -64,21 +65,51 @@ def compute_hessian(model, t, sample, hvp_batch=20):
         hess_part = torch.autograd.grad(delta_sample.flatten(), sample_req_vec,
                                         grad_outputs=torch.eye(input_dim, device="cuda")[i:i + hvp_batch, :],
                                         is_grads_batched=True, retain_graph=True, create_graph=False, )
-                                        # this is a trick to avoid sum over outputs
+                                        #this is a trick to avoid sum over outputs
         hess.append(hess_part[0])
     hess = torch.cat(hess, dim=0)
     return hess
 #%%
 # repo_id = "google/ddpm-celebahq-256"
-repo_id = "google/ddpm-cifar10-32"
-# repo_id = "nbonaker/ddpm-celeb-face-32/unet"
+repo_id = "google/ddpm-cifar10-32"  # Note this model has self-attention in it.
+# repo_id = "nbonaker/ddpm-celeb-face-32"
 model = UNet2DModel.from_pretrained(repo_id)
-model.requires_grad_(False).eval().half().to("cuda")
+model.requires_grad_(False).eval().to("cuda")
+#%%
+scheduler = DDIMScheduler.from_pretrained(repo_id)
+# scheduler = PNDMScheduler.from_pretrained(repo_id)
+scheduler.set_timesteps(num_inference_steps=100, )
+#%%
+sample, sample_traj, t_traj = sampling(model, scheduler, batch_size=40)
+
+show_imgrid((sample + 1) / 2)
+#%%
+sample_traj_tsr = torch.stack(sample_traj, dim=0)
+show_imgrid((sample_traj_tsr[90] + 1) / 2)
+#%%
+repo_id = "nbonaker/ddpm-celeb-face-32"
+pipe = DDPMPipeline.from_pretrained(repo_id)
+#%%
+scheduler = pipe.scheduler  # DDPMScheduler.from_pretrained(repo_id)
+scheduler.set_timesteps(num_inference_steps=1000)
+sample, _, t_traj = sampling(pipe.unet, scheduler)
+#%%
+show_imgrid((sample + 1) / 2)
+#%%
+
 #%%
 scheduler = DDIMScheduler.from_pretrained(repo_id)
 # scheduler = PNDMScheduler.from_pretrained(model_id)
 scheduler.set_timesteps(num_inference_steps=50)
+#%%
+sample = pipe()
+sample.images[0].show()
+#%%
+from diffusers import DDPMPipeline, DDIMPipeline
+repo_id = "dimpo/ddpm-mnist"
+pipe = DDPMPipeline.from_pretrained(repo_id)
 
+"https://huggingface.co/dimpo/ddpm-mnist"
 #%% Visualization code
 def SVec_to_imgtsr(SVecs, img_shape=(3, 32, 32), scale=1):
     imgtsr = ((SVecs.T.reshape(-1, *img_shape) * scale) + 1) / 2
