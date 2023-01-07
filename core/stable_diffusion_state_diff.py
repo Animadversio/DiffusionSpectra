@@ -1,11 +1,14 @@
 import json
+import math
 import os
 from os.path import join
+from tqdm import tqdm
 import torch
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from diffusers import pipelines, StableDiffusionPipeline
+from core.utils.plot_utils import show_imgrid, save_imgrid, saveallforms, to_imgrid
 # exproot = r"/home/binxuwang/insilico_exp/Diffusion_Hessian/StableDiffusion"
 pipe = StableDiffusionPipeline.from_pretrained(
     "runwayml/stable-diffusion-v1-5",
@@ -14,12 +17,13 @@ pipe = StableDiffusionPipeline.from_pretrained(
 )
 pipe = pipe.to("cuda")
 pipe.enable_attention_slicing()
-#%%
-# pipe = pipeline
 pipe.text_encoder.requires_grad_(False)
 pipe.unet.requires_grad_(False)
 pipe.vae.requires_grad_(False)
 # pipeline.to(torch.half)
+def dummy_checker(images, **kwargs): return images, False
+
+pipe.safety_checker = dummy_checker
 #%%
 # with torch.autocast("cuda"):
 latents_reservoir = []
@@ -28,11 +32,18 @@ def save_latents(i, t, latents):
     latents_reservoir.append(latents.detach().cpu())
 
 
-out = pipe("a cute and classy mice wearing dress and heels", callback=save_latents,
-           num_inference_steps=51)
+seed = 45
+tsteps = 51
+# prompt = "a cute and classy mice wearing dress and heels"
+# prompt = "a beautiful ballerina in yellow dress under the starry night in Van Gogh style"
+# prompt = "a classy ballet flat with a bow on the toe on a wooden floor"
+prompt = "a cat riding a motor cycle in a desert in a bright sunny day"
+prompt = "a bowl of soup looks like a portal to another dimension"
+out = pipe(prompt, callback=save_latents,
+           num_inference_steps=tsteps, generator=torch.cuda.manual_seed(seed))
 out.images[0].show()
 latents_reservoir = torch.cat(latents_reservoir, dim=0)
-#%%
+#%% Utility functions for analysis
 def denorm_std(x):
     return ((x - x.mean()) / x.std() * 0.4 + 1) / 2
 
@@ -47,51 +58,43 @@ def denorm_var(x, mu, std):
 
 def latents_to_image(latents, pipe):
     latents = 1 / 0.18215 * latents
-    image = pipe.vae.decode(latents.to(pipe.vae.device)).sample
+    image = pipe.vae.decode(latents.to(pipe.vae.device).to(pipe.vae.dtype)).sample
     image = (image / 2 + 0.5).clamp(0, 1)
     return image.cpu()
-#%%
-from core.utils.plot_utils import show_imgrid, save_imgrid, saveallforms, to_imgrid
 
-show_imgrid(denorm_std((latents_reservoir[0] - latents_reservoir[10]).unsqueeze(1)), nrow=2,)
-#%%
-show_imgrid(denorm_std((latents_reservoir[50] - latents_reservoir[25]).unsqueeze(1)), nrow=2,)
-#%%
-show_imgrid(denorm_std((latents_reservoir[7] - latents_reservoir[2]).unsqueeze(1)), nrow=2,)
+
+def latentvecs_to_image(latents, pipe, latent_shape=(4,64,64)):
+    if len(latents.shape) == 2:
+        latents = latents.reshape(latents.shape[0], *latent_shape)
+    latents = 1 / 0.18215 * latents
+    image = pipe.vae.decode(latents.to(pipe.vae.device).to(pipe.vae.dtype)).sample
+    image = (image / 2 + 0.5).clamp(0, 1)
+    return image.cpu()
 
 #%%
-# img_interim = pipe.vae.decode((latents_reservoir[7] - latents_reservoir[2]).unsqueeze(0).cuda()).sample.cpu()
-img_interim = latents_to_image(2*(latents_reservoir[7] - latents_reservoir[2])[None, :], pipe)
-show_imgrid(img_interim, nrow=1,)
-#%%
-img_interim = latents_to_image(20.0*(latents_reservoir[5] - latents_reservoir[0])[None, :], pipe)
-show_imgrid(img_interim, nrow=1, )
-#%%
-img_interim = latents_to_image(10.0*(latents_reservoir[50] - latents_reservoir[20])[None, :], pipe)
-show_imgrid(img_interim, nrow=1, )
-#%%
-savedir = r"F:\insilico_exps\Diffusion_traj\StableDiffusion\mice_dress_heels1"
+# savedir = r"F:\insilico_exps\Diffusion_traj\StableDiffusion\mice_dress_heels1"
+savedir = r"F:\insilico_exps\Diffusion_traj\StableDiffusion\ballerina_van_gogh"
+savedir = r"F:\insilico_exps\Diffusion_traj\StableDiffusion\ballet_flats"
+savedir = r"F:\insilico_exps\Diffusion_traj\StableDiffusion\cat_motorcycle"
+savedir = r"F:\insilico_exps\Diffusion_traj\StableDiffusion\bowl_portal"
 os.makedirs(savedir, exist_ok=True)
-#%% record the inter mediate images
-mean_fin = latents_reservoir[-1].mean(dim=0)
-std_fin = latents_reservoir[-1].std(dim=0)
-for i in range(0, 51, 5):
-    latent = latents_reservoir[i]
-    save_imgrid(denorm_std(latent[:, None, :, :]),
-                    join(savedir, f"diffusion_step_{i:02d}_latent_stdnorm.png"), nrow=2)
-    img = latents_to_image(latent[None, :], pipe)
-    save_imgrid(img, join(savedir, f"diffusion_step_{i:02d}_vae_decode.png"))
-    for j in range(0, 51, 5):
-        latent_diff = latents_reservoir[j] - latents_reservoir[i]
-        save_imgrid(denorm_std(latent_diff[:, None, :, :]),
-                    join(savedir, f"diffusion_traj_{j:02d}-{i:02d}_latent_stdnorm.png"), nrow=2, )
-        img_interim = latents_to_image(latent_diff[None, :], pipe)
-        save_imgrid(img_interim, join(savedir, f"diffusion_traj_{j:02d}-{i:02d}_vae_decode.png"), nrow=1, )
-        img_interim_denorm = latents_to_image(denorm_var(latent_diff[None, :], mean_fin, std_fin), pipe)
-        save_imgrid(img_interim_denorm, join(savedir, f"diffusion_traj_{j:02d}-{i:02d}_vae_decode_stdfinal.png"), nrow=1, )
+
+torch.save(latents_reservoir, join(savedir, "latents_reservoir.pt"))
+json.dump({"prompt": prompt, "tsteps": tsteps, "seed": seed}, open(join(savedir, "prompt.json"), "w"))
 
 #%%
-def compute_save_diff_imgs(savedir, step_list, latents_reservoir):
+def compute_save_diff_imgs(savedir, step_list, latents_reservoir, triu=True):
+    """
+    compute the difference code and decode the image
+
+    :param savedir:
+    :param step_list:
+    :param latents_reservoir:
+    :param triu:
+    :return:
+    """
+    mean_fin = latents_reservoir[-1].mean(dim=0)
+    std_fin = latents_reservoir[-1].std(dim=0)
     for i in step_list:
         latent = latents_reservoir[i]
         save_imgrid(denorm_std(latent[:, None, :, :]),
@@ -99,6 +102,8 @@ def compute_save_diff_imgs(savedir, step_list, latents_reservoir):
         img = latents_to_image(latent[None, :], pipe)
         save_imgrid(img, join(savedir, f"diffusion_step_{i:02d}_vae_decode.png"))
         for j in step_list:
+            if triu and j <= i:
+                continue
             latent_diff = latents_reservoir[j] - latents_reservoir[i]
             save_imgrid(denorm_std(latent_diff[:, None, :, :]),
                         join(savedir, f"diffusion_traj_{j:02d}-{i:02d}_latent_stdnorm.png"), nrow=2, )
@@ -108,15 +113,8 @@ def compute_save_diff_imgs(savedir, step_list, latents_reservoir):
             save_imgrid(img_interim_denorm, join(savedir, f"diffusion_traj_{j:02d}-{i:02d}_vae_decode_stdfinal.png"), nrow=1, )
 
 
-compute_save_diff_imgs(savedir, range(0, 21, 2), latents_reservoir)
-#%%
-compute_save_diff_imgs(savedir, range(0, 16, 1), latents_reservoir)
-#%%
-torch.save(latents_reservoir, join(savedir, "latents_reservoir.pt"))
-# json.dump({"prompt": text})
-#%%
 def plot_diff_matrix(savedir, step_list, diff_x_sfx="", step_x_sfx="", save_sfx="", tril=True):
-    """
+    """ Plot the matrix of figures showing the vector difference images.
 
     :param savedir: directory to load the components and to save the figures
     :param step_list: the time steps to fetch the existing data
@@ -152,32 +150,134 @@ def plot_diff_matrix(savedir, step_list, diff_x_sfx="", step_x_sfx="", save_sfx=
     return figh
 
 
-plot_diff_matrix(savedir, range(0, 51, 5),
-                 diff_x_sfx="_vae_decode", step_x_sfx="_vae_decode", save_sfx="_vae_decode")
-plot_diff_matrix(savedir, range(0, 51, 5),
-                 diff_x_sfx="_vae_decode_stdfinal", step_x_sfx="_vae_decode", save_sfx="_vae_decode_stdfinal")
-plot_diff_matrix(savedir, range(0, 51, 5),
-                 diff_x_sfx="_latent_stdnorm", step_x_sfx="_latent_stdnorm", save_sfx="_latent_stdnorm")
+"""Geometric utils """
+def proj2subspace(A, b):
+    """ Project b onto the subspace spanned by A
+    Assume, A, b are both row vectors
+    """
+    return (A.T@torch.linalg.inv(A@A.T)@A@b.T).T
 
+
+def proj2orthospace(A, b):
+    """ Project b onto the subspace spanned by A
+    Assume, A, b are both row vectors
+    """
+    return b - (A.T@torch.linalg.inv(A@A.T)@A@b.T).T
+
+
+"""Geometric analysis functions """
+def trajectory_geometry_pipeline(latents_reservoir, savedir):
+    init_latent = latents_reservoir[:1].flatten(1).float()
+    end_latent = latents_reservoir[-1:].flatten(1).float()
+    init_end_cosine = pairwise_cosine_similarity(init_latent, end_latent).item()
+    init_end_angle = math.acos(init_end_cosine)
+    init_end_ang_deg = init_end_angle / math.pi * 180
+    unitbasis1 = end_latent / end_latent.norm()  # end state
+    unitbasis2 = proj2orthospace(end_latent, init_latent)  # init noise that is ortho to the end state
+    unitbasis2 = unitbasis2 / unitbasis2.norm()  # unit normalize
+    proj_coef1 = torch.matmul(latents_reservoir.flatten(1).float(), unitbasis1.T)
+    proj_coef2 = torch.matmul(latents_reservoir.flatten(1).float(), unitbasis2.T)
+    residue = latents_reservoir.flatten(1).float() - (proj_coef1 @ unitbasis1 + proj_coef2 @ unitbasis2)
+    residue_frac = residue.norm(dim=1) ** 2 / latents_reservoir.flatten(1).float().norm(dim=1) ** 2
+
+    """plot latent space trajectory on the 2d plane spanned by the initial and final states"""
+    plt.figure()
+    plt.plot([0, proj_coef1[0].item()], [0, proj_coef2[0].item()], label="noise init", color="r")
+    plt.plot([0, proj_coef1[-1].item()], [0, proj_coef2[-1].item()], label="final latent", color="g")
+    plt.scatter(proj_coef1, proj_coef2, label="latent trajectory")
+    plt.axhline(0, color="k", linestyle="--", lw=0.5)
+    plt.axvline(0, color="k", linestyle="--", lw=0.5)
+    plt.legend()
+    plt.xlabel("projection with z_T")
+    plt.ylabel("projection with ortho part of z_0")
+    plt.title(
+        f"latent trajectory in 2d projection space (z0,zT)\ninit end cosine={init_end_cosine:.3f} angle={init_end_ang_deg:.1f} deg")
+    saveallforms(savedir, f"latent_trajectory_2d_proj", plt.gcf())
+    plt.show()
+    # %
+    """The geometry of the differences"""
+    plt.figure()
+    plt.scatter(proj_coef1[1:] - proj_coef1[:-1], proj_coef2[1:] - proj_coef2[:-1], c=range(50), label="latent diff")
+    plt.plot(proj_coef1[1:] - proj_coef1[:-1], proj_coef2[1:] - proj_coef2[:-1], color="k", alpha=0.5)
+    plt.axhline(0, color="k", linestyle="--", lw=0.5)
+    plt.axvline(0, color="k", linestyle="--", lw=0.5)
+    plt.axline((0, 0), slope=proj_coef2[0].item() / proj_coef1[0].item(),
+               color="r", linestyle="--", label="init noise direction")
+    plt.axline((0, 0), slope=0,
+               color="g", linestyle="--", label="final latent direction")
+    plt.legend()
+    plt.axis("equal")
+    plt.xlabel("projection with z_T")
+    plt.ylabel("projection with ortho part of z_0")
+    plt.title(
+        f"latent diff (z_t+1 - z_t) in 2d projection space (z0,zT)\ninit end cosine={init_end_cosine:.3f} angle={init_end_ang_deg:.1f} deg")
+    saveallforms(savedir, f"latent_diff_2d_proj", plt.gcf())
+    plt.show()
+    # %
+    """There is little variance outside the subspace spanned by the initial and final states"""
+    plt.figure()
+    plt.plot(residue_frac)
+    plt.title("fraction of residue ortho to the 2d subspace spanned by z_0 and z_T")
+    plt.xlabel("t")
+    plt.ylabel("fraction of var")
+    saveallforms(savedir, f"latent_trajectory_2d_proj_residue_trace", plt.gcf())
+    plt.show()
+    # %
+    """There is little variance of vector norm"""
+    plt.figure()
+    plt.plot(latents_reservoir.flatten(1).float().norm(dim=1))
+    plt.title("Norm of latent states")
+    plt.xlabel("t")
+    plt.ylabel("L2 norm")
+    saveallforms(savedir, f"latent_trajectory_norm_trace", plt.gcf())
+    plt.show()
+
+
+def visualize_traj_2d_cycle(latents_reservoir, pipe, savedir, ticks=range(0,360,10)):
+    """Plot the 2d cycle of the latent states plane of trajectory"""
+    init_latent = latents_reservoir[:1].flatten(1).float()
+    end_latent = latents_reservoir[-1:].flatten(1).float()
+    unitbasis1 = end_latent / end_latent.norm()  # end state
+    unitbasis2 = proj2orthospace(end_latent, init_latent)  # init noise that is ortho to the end state
+    unitbasis2 = unitbasis2 / unitbasis2.norm()  # unit normalize
+    imgtsrs = []
+    for phi in tqdm(ticks):
+        phi = phi * np.pi / 180
+        imgtsr = latentvecs_to_image((unitbasis2 * math.sin(phi) +
+                                      unitbasis1 * math.cos(phi)) * end_latent.norm(), pipe)
+        imgtsrs.append(imgtsr)
+    imgtsrs = torch.cat(imgtsrs, dim=0)
+    show_imgrid(imgtsrs, nrow=9)
+    save_imgrid(imgtsrs, join(savedir, "latent_2d_cycle_visualization.png"), nrow=9)
+#%%
+#%%
+compute_save_diff_imgs(savedir, range(0, 51, 5), latents_reservoir)
+plot_diff_matrix(savedir, range(0, 51, 5), diff_x_sfx="_vae_decode",  step_x_sfx="_vae_decode",
+                                            save_sfx="_vae_decode")
+plot_diff_matrix(savedir, range(0, 51, 5), diff_x_sfx="_vae_decode_stdfinal",  step_x_sfx="_vae_decode",
+                                            save_sfx="_vae_decode_stdfinal")
+plot_diff_matrix(savedir, range(0, 51, 5), diff_x_sfx="_latent_stdnorm",  step_x_sfx="_latent_stdnorm",
+                                            save_sfx="_latent_stdnorm")
+#%%
+compute_save_diff_imgs(savedir, range(0, 16, 1), latents_reservoir)
+plot_diff_matrix(savedir, range(0, 16, 1), diff_x_sfx="_vae_decode", step_x_sfx="_vae_decode",
+                                            save_sfx="_vae_decode_early0-15")
+plot_diff_matrix(savedir, range(0, 16, 1), diff_x_sfx="_vae_decode_stdfinal", step_x_sfx="_vae_decode",
+                                            save_sfx="_vae_decode_stdfinal_early0-15")
+plot_diff_matrix(savedir, range(0, 16, 1), diff_x_sfx="_latent_stdnorm", step_x_sfx="_latent_stdnorm",
+                                            save_sfx="_latent_stdnorm_early0-15")
 
 #%%
+compute_save_diff_imgs(savedir, range(0, 21, 2), latents_reservoir)
 plot_diff_matrix(savedir, range(0, 21, 2),
                  diff_x_sfx="_vae_decode", step_x_sfx="_vae_decode", save_sfx="_vae_decode_early0-20")
 plot_diff_matrix(savedir, range(0, 21, 2),
                  diff_x_sfx="_vae_decode_stdfinal", step_x_sfx="_vae_decode", save_sfx="_vae_decode_stdfinal_early0-20")
 plot_diff_matrix(savedir, range(0, 21, 2),
                  diff_x_sfx="_latent_stdnorm", step_x_sfx="_latent_stdnorm", save_sfx="_latent_stdnorm_early0-20")
-#%%
-plot_diff_matrix(savedir, range(0, 16, 1),
-                 diff_x_sfx="_vae_decode", step_x_sfx="_vae_decode", save_sfx="_vae_decode_early0-15")
-plot_diff_matrix(savedir, range(0, 16, 1),
-                 diff_x_sfx="_vae_decode_stdfinal", step_x_sfx="_vae_decode", save_sfx="_vae_decode_stdfinal_early0-15")
-plot_diff_matrix(savedir, range(0, 16, 1),
-                 diff_x_sfx="_latent_stdnorm", step_x_sfx="_latent_stdnorm", save_sfx="_latent_stdnorm_early0-15")
 
 #%%
 """ Correlogram of the latent state difference """
-import seaborn as sns
 from torchmetrics.functional import pairwise_cosine_similarity
 def diff_lag(x, lag=1, ):
     assert lag >= 1
@@ -191,14 +291,97 @@ def avg_cosine_sim_mat(X):
     return cosmat, cosmat_vec.mean()
 
 
-cosmat, cosmat_avg = avg_cosine_sim_mat(latents_reservoir.flatten(1).float())
-plt.figure()
-sns.heatmap(cosmat, cmap="coolwarm", vmin=-1, vmax=1)
-plt.title(f"cosine similarity matrix of latent states, avg={cosmat_avg:.3f}")
+def diff_cosine_mat_analysis(latents_reservoir, savedir, lags=(1,2,3,4,5,10)):
+    for lag in lags:
+        cosmat, cosmat_avg = avg_cosine_sim_mat(diff_lag(latents_reservoir, lag).flatten(1).float())
+        figh = plt.figure(figsize=(7, 6))
+        sns.heatmap(cosmat, cmap="coolwarm", vmin=-1, vmax=1)
+        plt.axis("image")
+        plt.title(
+            f"cosine similarity matrix of latent states diff z_t+{lag} - z_t\n avg cosine={cosmat_avg:.3f} lag={lag}")
+        plt.xlabel("t1")
+        plt.ylabel("t2")
+        saveallforms(savedir, f"cosine_mat_latent_diff_lag{lag}", figh)
+        plt.show()
+
+    for lag in lags:
+        cosvec_end = pairwise_cosine_similarity(diff_lag(latents_reservoir, lag).flatten(1).float(),
+                                                latents_reservoir[-1:].flatten(1).float())
+        cosvec_init = pairwise_cosine_similarity(diff_lag(latents_reservoir, lag).flatten(1).float(),
+                                                 latents_reservoir[:1].flatten(1).float())
+        figh = plt.figure()
+        plt.plot(cosvec_end, label="with end z_T")
+        plt.plot(cosvec_init, label="with init z_0")
+        plt.axhline(0, color="k", linestyle="--")
+        plt.title(f"cosine similarity of latent states diff z_t+{lag} - z_t with z_0, z_T")
+        plt.xlabel("t")
+        plt.ylabel("cosine similarity")
+        plt.legend()
+        saveallforms(savedir, f"cosine_trace_w_init_end_latent_diff_lag{lag}", figh)
+        plt.show()
+
+    cosvec_end = pairwise_cosine_similarity(latents_reservoir.flatten(1).float(),
+                                            latents_reservoir[-1:].flatten(1).float())
+    cosvec_init = pairwise_cosine_similarity(latents_reservoir.flatten(1).float(),
+                                             latents_reservoir[:1].flatten(1).float())
+    figh = plt.figure()
+    plt.plot(cosvec_end, label="with end z_T")
+    plt.plot(cosvec_init, label="with init z_0")
+    plt.axhline(0, color="k", linestyle="--")
+    plt.title(f"cosine similarity of latent states z_t with z_0, z_T")
+    plt.xlabel("t")
+    plt.ylabel("cosine similarity")
+    plt.legend()
+    saveallforms(savedir, f"cosine_trace_w_init_end_latent", figh)
+    plt.show()
+#%%
+"""Geometry of the trajectory in 2d projection"""
+diff_cosine_mat_analysis(latents_reservoir, savedir, lags=(1,2,3,4,5,10))
+"""Geometry of the trajectory in 2d projection"""
+trajectory_geometry_pipeline(latents_reservoir, savedir)
+visualize_traj_2d_cycle(latents_reservoir, pipe, savedir)
+
+
+#%%
+"""test if correlation and coef signal the same thing?"""
+sns.heatmap(torch.corrcoef(latents_reservoir.flatten(1).float(), ))
 plt.show()
 #%%
-cosmat, cosmat_avg = avg_cosine_sim_mat(latents_reservoir.flatten(1).float())
+sns.heatmap(torch.corrcoef((latents_reservoir[1:]-latents_reservoir[:-1]).flatten(1).float(), ))
+plt.show()
 #%%
+""" Geometry of latent space evolution in the subspace spanned by the initial state and final states 
+un orthogonal basis
+"""
+init_latent = latents_reservoir[:1].flatten(1).float()
+end_latent = latents_reservoir[-1:].flatten(1).float()
+init_end_cosine = pairwise_cosine_similarity(init_latent, end_latent).item()
+proj_coef_init = torch.matmul(latents_reservoir.flatten(1).float(), init_latent.T) / torch.norm(init_latent)**2
+proj_coef_end = torch.matmul(latents_reservoir.flatten(1).float(), end_latent.T) / torch.norm(end_latent)**2
+plt.figure()
+plt.plot(proj_coef_init, label="with init z_0")
+plt.plot(proj_coef_end, label="with end z_T")
+plt.axhline(0, color="k", linestyle="--")
+plt.title(f"projection of latent states diff z_t with z_T\n init end cosine={init_end_cosine:.3f}")
+plt.xlabel("t")
+plt.ylabel("projection")
+plt.legend()
+saveallforms(savedir, "latent_trajectory_projcoef", plt.gcf())
+plt.show()
+#%
+plt.figure()
+plt.scatter(proj_coef_init, proj_coef_end, label="latent trajectory")
+plt.axhline(0, color="k", linestyle="--")
+plt.axvline(0, color="k", linestyle="--")
+plt.xlabel("projection with z_0")
+plt.ylabel("projection with z_T")
+plt.title(f"latent trajectory in 2d proejction space\n(in a non orthogonal basis. init end cosine={init_end_cosine:.3f})")
+saveallforms(savedir, "latent_trajectory_2d_projection_nonortho", plt.gcf())
+plt.show()
+#%%
+
+#%% dev zone
+"""cosine similarity matrix of the latent state diffs"""
 for lag in [1, 2, 3, 4, 5, 10]:
     cosmat, cosmat_avg = avg_cosine_sim_mat(diff_lag(latents_reservoir, lag).flatten(1).float())
     figh = plt.figure(figsize=(7, 6))
@@ -210,6 +393,7 @@ for lag in [1, 2, 3, 4, 5, 10]:
     saveallforms(savedir, f"cosine_mat_latent_diff_lag{lag}", figh)
     plt.show()
 #%%
+"""cosine similarity of the latent state difference and init / end"""
 for lag in [1, 2, 3, 4, 5, 10]:
     cosvec_end = pairwise_cosine_similarity(diff_lag(latents_reservoir, lag).flatten(1).float(),
                                         latents_reservoir[-1:].flatten(1).float())
@@ -226,41 +410,146 @@ for lag in [1, 2, 3, 4, 5, 10]:
     saveallforms(savedir, f"cosine_trace_w_init_end_latent_diff_lag{lag}", figh)
     plt.show()
 #%%
-""" Geometry of latent space evolution in the subspace spanned by the initial state and final states """
-init_latent = latents_reservoir[:1].flatten(1).float()
-end_latent = latents_reservoir[-1:].flatten(1).float()
-proj_coef_init = torch.matmul(latents_reservoir.flatten(1).float(), init_latent.T) / torch.norm(init_latent)**2
-proj_coef_end = torch.matmul(latents_reservoir.flatten(1).float(), end_latent.T) / torch.norm(end_latent)**2
-plt.figure()
-plt.plot(proj_coef_init, label="with init z_0")
-plt.plot(proj_coef_end, label="with end z_T")
+"""cosine similarity of the latent state and init / end"""
+cosvec_end = pairwise_cosine_similarity(latents_reservoir.flatten(1).float(),
+                                        latents_reservoir[-1:].flatten(1).float())
+cosvec_init = pairwise_cosine_similarity(latents_reservoir.flatten(1).float(),
+                                    latents_reservoir[:1].flatten(1).float())
+figh = plt.figure()
+plt.plot(cosvec_end, label="with end z_T")
+plt.plot(cosvec_init, label="with init z_0")
 plt.axhline(0, color="k", linestyle="--")
-plt.title(f"projection of latent states diff z_t+{lag} - z_t with z_T")
+plt.title(f"cosine similarity of latent states z_t with z_0, z_T")
 plt.xlabel("t")
-plt.ylabel("projection")
+plt.ylabel("cosine similarity")
 plt.legend()
+saveallforms(savedir, f"cosine_trace_w_init_end_latent", figh)
+plt.show()
+
+#%% dev zone
+cosmat, cosmat_avg = avg_cosine_sim_mat(latents_reservoir.flatten(1).float())
+plt.figure()
+sns.heatmap(cosmat, cmap="coolwarm", vmin=-1, vmax=1)
+plt.title(f"cosine similarity matrix of latent states, avg={cosmat_avg:.3f}")
+plt.show()
+
+
+#%% dev zone
+show_imgrid(denorm_std((latents_reservoir[0] - latents_reservoir[10]).unsqueeze(1)), nrow=2,)
+#%%
+show_imgrid(denorm_std((latents_reservoir[50] - latents_reservoir[25]).unsqueeze(1)), nrow=2,)
+#%%
+show_imgrid(denorm_std((latents_reservoir[7] - latents_reservoir[2]).unsqueeze(1)), nrow=2,)
+
+#%%
+# img_interim = pipe.vae.decode((latents_reservoir[7] - latents_reservoir[2]).unsqueeze(0).cuda()).sample.cpu()
+img_interim = latents_to_image(2*(latents_reservoir[7] - latents_reservoir[2])[None, :], pipe)
+show_imgrid(img_interim, nrow=1,)
+#%%
+img_interim = latents_to_image(20.0*(latents_reservoir[5] - latents_reservoir[0])[None, :], pipe)
+show_imgrid(img_interim, nrow=1, )
+#%%
+img_interim = latents_to_image(10.0*(latents_reservoir[50] - latents_reservoir[20])[None, :], pipe)
+show_imgrid(img_interim, nrow=1, )
+
+#%%
+#%% record the inter mediate images
+mean_fin = latents_reservoir[-1].mean(dim=0)
+std_fin = latents_reservoir[-1].std(dim=0)
+for i in range(0, 51, 5):
+    latent = latents_reservoir[i]
+    save_imgrid(denorm_std(latent[:, None, :, :]),
+                    join(savedir, f"diffusion_step_{i:02d}_latent_stdnorm.png"), nrow=2)
+    img = latents_to_image(latent[None, :], pipe)
+    save_imgrid(img, join(savedir, f"diffusion_step_{i:02d}_vae_decode.png"))
+    for j in range(0, 51, 5):
+        latent_diff = latents_reservoir[j] - latents_reservoir[i]
+        save_imgrid(denorm_std(latent_diff[:, None, :, :]),
+                    join(savedir, f"diffusion_traj_{j:02d}-{i:02d}_latent_stdnorm.png"), nrow=2, )
+        img_interim = latents_to_image(latent_diff[None, :], pipe)
+        save_imgrid(img_interim, join(savedir, f"diffusion_traj_{j:02d}-{i:02d}_vae_decode.png"), nrow=1, )
+        img_interim_denorm = latents_to_image(denorm_var(latent_diff[None, :], mean_fin, std_fin), pipe)
+        save_imgrid(img_interim_denorm, join(savedir, f"diffusion_traj_{j:02d}-{i:02d}_vae_decode_stdfinal.png"), nrow=1, )
+
+
+
+
+#%% dev zone
+"""plot latent space trajectory on the 2d plane spanned by the initial and final states"""
+
+init_end_cosine = pairwise_cosine_similarity(init_latent, end_latent).item()
+init_end_angle = math.acos(init_end_cosine)
+init_end_ang_deg = init_end_angle / math.pi * 180
+unitbasis1 = end_latent / end_latent.norm()  # end state
+unitbasis2 = proj2orthospace(end_latent, init_latent)  # init noise that is ortho to the end state
+unitbasis2 = unitbasis2 / unitbasis2.norm()  # unit normalize
+proj_coef1 = torch.matmul(latents_reservoir.flatten(1).float(), unitbasis1.T)
+proj_coef2 = torch.matmul(latents_reservoir.flatten(1).float(), unitbasis2.T)
+residue = latents_reservoir.flatten(1).float() - (proj_coef1 @ unitbasis1 + proj_coef2 @ unitbasis2)
+residue_frac = residue.norm(dim=1) ** 2 / latents_reservoir.flatten(1).float().norm(dim=1) ** 2
+
+plt.figure()
+plt.plot([0, proj_coef1[0].item()], [0, proj_coef2[0].item()], label="noise init", color="r")
+plt.plot([0, proj_coef1[-1].item()], [0, proj_coef2[-1].item()], label="final latent", color="g")
+plt.scatter(proj_coef1, proj_coef2, label="latent trajectory")
+plt.axhline(0, color="k", linestyle="--", lw=0.5)
+plt.axvline(0, color="k", linestyle="--", lw=0.5)
+plt.legend()
+plt.xlabel("projection with z_T")
+plt.ylabel("projection with ortho part of z_0")
+plt.title(f"latent trajectory in 2d projection space (z0,zT)\ninit end cosine={init_end_cosine:.3f} angle={init_end_ang_deg:.1f} deg")
+saveallforms(savedir, f"latent_trajectory_2d_proj", plt.gcf())
 plt.show()
 #%
+"""The geometry of the differences"""
 plt.figure()
-plt.scatter(proj_coef_init, proj_coef_end, label="latent trajectory")
-plt.axhline(0, color="k", linestyle="--")
-plt.axvline(0, color="k", linestyle="--")
-plt.xlabel("projection with z_0")
-plt.ylabel("projection with z_T")
-plt.title("latent trajectory in 2d proejction space")
+plt.scatter(proj_coef1[1:]-proj_coef1[:-1], proj_coef2[1:]-proj_coef2[:-1], c=range(50), label="latent diff")
+plt.plot(proj_coef1[1:]-proj_coef1[:-1], proj_coef2[1:]-proj_coef2[:-1], color="k", alpha=0.5)
+plt.axhline(0, color="k", linestyle="--", lw=0.5)
+plt.axvline(0, color="k", linestyle="--", lw=0.5)
+plt.axline((0, 0), slope=proj_coef2[0].item() / proj_coef1[0].item(),
+           color="r", linestyle="--", label="init noise direction")
+plt.axline((0, 0), slope=0,
+           color="g", linestyle="--", label="final latent direction")
+plt.legend()
+plt.axis("equal")
+plt.xlabel("projection with z_T")
+plt.ylabel("projection with ortho part of z_0")
+plt.title(f"latent diff (z_t+1 - z_t) in 2d projection space (z0,zT)\ninit end cosine={init_end_cosine:.3f} angle={init_end_ang_deg:.1f} deg")
+saveallforms(savedir, f"latent_diff_2d_proj", plt.gcf())
+plt.show()
+#%
+"""There is little variance outside the subspace spanned by the initial and final states"""
+plt.figure()
+plt.plot(residue_frac)
+plt.title("fraction of residue ortho to the 2d subspace spanned by z_0 and z_T")
+plt.xlabel("t")
+plt.ylabel("fraction of var")
+saveallforms(savedir, f"latent_trajectory_2d_proj_residue_trace", plt.gcf())
+plt.show()
+#%
+"""There is little variance of vector norm"""
+plt.figure()
+plt.plot(latents_reservoir.flatten(1).float().norm(dim=1))
+plt.title("Norm of latent states")
+plt.xlabel("t")
+plt.ylabel("L2 norm")
+saveallforms(savedir, f"latent_trajectory_norm_trace", plt.gcf())
 plt.show()
 #%%
-(proj_coef_init @ init_latent + proj_coef_end @ end_latent).norm(dim=1, keepdim=True) ** 2 / \
-    latents_reservoir.flatten(1).float().norm(dim=1, keepdim=True)**2
-#%%
-def proj2subspace(A,b):
-    return (A.T@torch.linalg.inv(A@A.T)@A@b.T).T
+"""Plot the 2d cycle of the latent states plane of trajectory"""
+imgtsrs = []
+for phi in np.linspace(0, 360, 36, endpoint=False):
+    phi = phi * np.pi / 180
+    imgtsr = latentvecs_to_image((unitbasis2 * math.sin(phi) + unitbasis1 * math.cos(phi)) * end_latent.norm(), pipe)
+    imgtsrs.append(imgtsr)
+imgtsrs = torch.cat(imgtsrs, dim=0)
+show_imgrid(imgtsrs, nrow=9)
+save_imgrid(imgtsrs, join(savedir, "latent_2d_cycle_visualization.png"), nrow=9)
 
 
-def proj2orthospace(A, b):
-    return b - (A.T@torch.linalg.inv(A@A.T)@A@b.T).T
 
-
+#%% dev zone
 # proj2subspace(init_latent, latents_reservoir.flatten(1).float())
 latents_proj = proj2subspace(torch.cat((init_latent, end_latent)),
               latents_reservoir.flatten(1).float())
@@ -279,53 +568,9 @@ show_imgrid(proj_img)
 proj_img = latents_to_image(30*latents_proj_out_noise.reshape(latents_reservoir.shape).half()[2:3], pipe)
 show_imgrid(proj_img)
 #%%
-"""plot latent space trajectory on the 2d plane spanned by the initial and final states"""
-
-unitbasis1 = end_latent / end_latent.norm()  # end state
-unitbasis2 = proj2orthospace(end_latent, init_latent)  # init noise that is ortho to the end state
-unitbasis2 = unitbasis2 / unitbasis2.norm()  # unit normalize
-proj_coef1 = torch.matmul(latents_reservoir.flatten(1).float(), unitbasis1.T)
-proj_coef2 = torch.matmul(latents_reservoir.flatten(1).float(), unitbasis2.T)
-residue = latents_reservoir.flatten(1).float() - (proj_coef1 @ unitbasis1 + proj_coef2 @ unitbasis2)
-residue_frac = residue.norm(dim=1) ** 2 / latents_reservoir.flatten(1).float().norm(dim=1) ** 2
-
-plt.figure()
-plt.plot([0, proj_coef1[0].item()], [0, proj_coef2[0].item()], label="noise init", color="r")
-plt.plot([0, proj_coef1[-1].item()], [0, proj_coef2[-1].item()], label="final latent", color="g")
-plt.scatter(proj_coef1, proj_coef2, label="latent trajectory")
-plt.axhline(0, color="k", linestyle="--", lw=0.5)
-plt.axvline(0, color="k", linestyle="--", lw=0.5)
-plt.legend()
-plt.xlabel("projection with z_T")
-plt.ylabel("projection with ortho part of z_0")
-plt.title("latent trajectory in 2d projection space (z0,zT)")
-saveallforms(savedir, f"latent_trajectory_2d_proj", plt.gcf())
-plt.show()
-#%%
-"""There is little variance outside the subspace spanned by the initial and final states"""
-plt.figure()
-plt.plot(residue_frac)
-plt.title("fraction of residue ortho to the 2d subspace spanned by z_0 and z_T")
-plt.xlabel("t")
-plt.ylabel("fraction of var")
-saveallforms(savedir, f"latent_trajectory_2d_proj_residue_trace", plt.gcf())
-plt.show()
-#%%
-"""The geometry of the differences"""
-plt.figure()
-plt.scatter(proj_coef1[1:]-proj_coef1[:-1], proj_coef2[1:]-proj_coef2[:-1], c=range(50), label="latent diff")
-plt.plot(proj_coef1[1:]-proj_coef1[:-1], proj_coef2[1:]-proj_coef2[:-1], color="k", alpha=0.5)
-plt.axhline(0, color="k", linestyle="--", lw=0.5)
-plt.axvline(0, color="k", linestyle="--", lw=0.5)
-plt.axline((0, 0), slope=proj_coef2[0].item() / proj_coef1[0].item(),
-           color="r", linestyle="--", label="init noise direction")
-plt.legend()
-plt.axis("equal")
-plt.xlabel("projection with z_T")
-plt.ylabel("projection with ortho part of z_0")
-plt.title("latent diff (z_t+1 - z_t) in 2d projection space (z0,zT)")
-saveallforms(savedir, f"latent_diff_2d_proj", plt.gcf())
-plt.show()
+phi = 180 * np.pi / 180
+show_imgrid(latents_to_image(((unitbasis2 * math.sin(phi) + unitbasis1 * math.cos(phi)) * end_latent.norm())\
+                             .reshape(latents_reservoir[-1:].shape).half(), pipe))
 
 #%% dev zone
 diff_x_sfx = "_latent_stdnorm"
