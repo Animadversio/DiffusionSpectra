@@ -81,7 +81,33 @@ os.makedirs(savedir, exist_ok=True)
 
 torch.save(latents_reservoir, join(savedir, "latents_reservoir.pt"))
 json.dump({"prompt": prompt, "tsteps": tsteps, "seed": seed}, open(join(savedir, "prompt.json"), "w"))
+#%%
 
+"""Geometric utils """
+def proj2subspace(A, b):
+    """ Project b onto the subspace spanned by A
+    Assume, A, b are both row vectors
+    """
+    return (A.T@torch.linalg.inv(A@A.T)@A@b.T).T
+
+
+def proj2orthospace(A, b):
+    """ Project b onto the subspace spanned by A
+    Assume, A, b are both row vectors
+    """
+    return b - (A.T@torch.linalg.inv(A@A.T)@A@b.T).T
+
+
+def subspace_variance(X, subspace):
+    """ Calculate the variance of X projected onto the subspace
+    """
+    if X.ndim != 2:
+        X = X.flatten(1)
+    if subspace.ndim != 2:
+        subspace = subspace.flatten(1)
+    X_proj = proj2subspace(subspace, X)
+    var_ratio = X_proj.norm(dim=1)**2 / X.norm(dim=1)**2
+    return var_ratio, 1 - var_ratio
 #%%
 def compute_save_diff_imgs(savedir, step_list, latents_reservoir, triu=True):
     """
@@ -148,21 +174,6 @@ def plot_diff_matrix(savedir, step_list, diff_x_sfx="", step_x_sfx="", save_sfx=
     saveallforms(savedir, f"diffusion_traj_diff_mtg{save_sfx}", figh)
     plt.show()
     return figh
-
-
-"""Geometric utils """
-def proj2subspace(A, b):
-    """ Project b onto the subspace spanned by A
-    Assume, A, b are both row vectors
-    """
-    return (A.T@torch.linalg.inv(A@A.T)@A@b.T).T
-
-
-def proj2orthospace(A, b):
-    """ Project b onto the subspace spanned by A
-    Assume, A, b are both row vectors
-    """
-    return b - (A.T@torch.linalg.inv(A@A.T)@A@b.T).T
 
 
 """Geometric analysis functions """
@@ -250,7 +261,6 @@ def visualize_traj_2d_cycle(latents_reservoir, pipe, savedir, ticks=range(0,360,
     show_imgrid(imgtsrs, nrow=9)
     save_imgrid(imgtsrs, join(savedir, "latent_2d_cycle_visualization.png"), nrow=9)
 #%%
-#%%
 compute_save_diff_imgs(savedir, range(0, 51, 5), latents_reservoir)
 plot_diff_matrix(savedir, range(0, 51, 5), diff_x_sfx="_vae_decode",  step_x_sfx="_vae_decode",
                                             save_sfx="_vae_decode")
@@ -334,12 +344,105 @@ def diff_cosine_mat_analysis(latents_reservoir, savedir, lags=(1,2,3,4,5,10)):
     plt.legend()
     saveallforms(savedir, f"cosine_trace_w_init_end_latent", figh)
     plt.show()
+
+
+def latent_PCA_analysis(latents_reservoir, savedir,
+                        proj_planes=[(0, 1)]):
+    latents_mat = latents_reservoir.flatten(1).double()
+    latents_mat = latents_mat - latents_mat.mean(dim=0)
+    U, D, V = torch.svd(latents_mat, )
+    expvar_vec = torch.cumsum(D ** 2 / (D ** 2).sum(), dim=0)
+
+    plt.figure()
+    plt.plot(expvar_vec)
+    plt.xlabel("PC")
+    plt.ylabel("explained variance")
+    plt.title("Explained variance of the latent trajectory")
+    saveallforms(savedir, "latent_traj_PCA_expvar", plt.gcf())
+    plt.show()
+
+    for PCi, PCj in proj_planes:
+        projvar = (D[[PCi, PCj]] ** 2).sum() / (D ** 2).sum()
+        plt.figure(figsize=(6, 6.5))
+        plt.plot(U[:, PCi] * D[PCi], U[:, PCj] * D[PCj], "-")
+        plt.scatter(U[:, PCi] * D[PCi], U[:, PCj] * D[PCj], c=range(len(U)))
+        plt.xlabel(f"PC{PCi + 1}")
+        plt.ylabel(f"PC{PCj + 1}")
+        plt.axis("equal")
+        plt.title(f"Latent state projection onto the 2 PCs (PC{PCi + 1} vs PC{PCj + 1})"
+                  f"\n{projvar:.2%} of the variance is explained")
+        saveallforms(savedir, f"latent_traj_PC{PCi + 1}_PC{PCj + 1}_proj", plt.gcf())
+        plt.show()
+    return expvar_vec, U, D, V
+
+
+def latent_diff_PCA_analysis(latents_reservoir, savedir,
+             proj_planes=[(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]):
+    """PCA of the latent steps taken """
+    latents_mat = latents_reservoir.flatten(1).double()
+    latents_diff_mat = latents_mat[1:] - latents_mat[:-1]
+    latents_diff_mat = latents_diff_mat - latents_diff_mat.mean(dim=0)
+    U_diff, D_diff, V_diff = torch.svd(latents_diff_mat, )
+    expvar_diff = torch.cumsum(D_diff ** 2 / (D_diff ** 2).sum(), dim=0)
+    plt.figure()
+    plt.plot(expvar_diff)
+    plt.xlabel("PC")
+    plt.ylabel("explained variance")
+    plt.title("Explained variance of the latent difference")
+    saveallforms(savedir, "latent_diff_PCA_expvar", plt.gcf())
+    plt.show()
+    """Project the latent steps to different PC planes."""
+    for PCi, PCj in proj_planes:
+        projvar = (D_diff[[PCi, PCj]] ** 2).sum() / (D_diff ** 2).sum()
+        plt.figure(figsize=(6, 6.5))
+        plt.plot(U_diff[:, PCi] * D_diff[PCi], U_diff[:, PCj] * D_diff[PCj], ":k", lw=1)
+        plt.scatter(U_diff[:, PCi] * D_diff[PCi], U_diff[:, PCj] * D_diff[PCj], c=range(len(U_diff)))
+        plt.xlabel(f"PC{PCi + 1}")
+        plt.ylabel(f"PC{PCj + 1}")
+        plt.axis("equal")
+        plt.title(f"Latent Step projection onto the 2 PCs (PC{PCi + 1} vs PC{PCj + 1})"
+                  f"\n{projvar:.2%} of the variance is explained")
+        saveallforms(savedir, f"latent_diff_PC{PCi + 1}_PC{PCj + 1}_proj", plt.gcf())
+        plt.show()
+    return expvar_diff, U_diff, D_diff, V_diff
+
 #%%
 """Geometry of the trajectory in 2d projection"""
 diff_cosine_mat_analysis(latents_reservoir, savedir, lags=(1,2,3,4,5,10))
 """Geometry of the trajectory in 2d projection"""
 trajectory_geometry_pipeline(latents_reservoir, savedir)
 visualize_traj_2d_cycle(latents_reservoir, pipe, savedir)
+#%%
+latent_PCA_analysis(latents_reservoir, savedir,)
+latent_diff_PCA_analysis(latents_reservoir, savedir,)
+#%%
+latents_norm = latents_reservoir.flatten(1).double().norm(dim=1)
+# latent_residue01 = proj2orthospace(latents_reservoir[[0,2,4],:].flatten(1).double(), latents_reservoir.flatten(1).double())
+latent_proj01 = proj2subspace(latents_reservoir[range(10),:].flatten(1).double(), latents_reservoir.flatten(1).double())
+latent_proj01 = proj2subspace(torch.stack((latents_reservoir[0],
+                                           100 * latents_reservoir[2] - latents_reservoir[0],) ).flatten(1).double(), latents_reservoir.flatten(1).double())
+# latent_residue02 = proj2orthospace(latents_reservoir[:3,:].flatten(1).float(), latents_reservoir.flatten(1).float())
+# plt.plot(latent_residue01.norm(dim=1)**2 / latents_norm**2, label="subspace 01")
+plt.plot(latent_proj01.norm(dim=1)**2 / latents_norm**2, label="subspace 01")
+# plt.plot(latent_residue02.norm(dim=1) / latents_norm, label="subspace 012")
+plt.legend()
+plt.title("residue of the latent state in the subspace spanned by the first 2 or 3 states")
+plt.xlabel("t")
+plt.ylabel("residue norm / latent norm")
+# saveallforms(savedir, "residue_norm", plt.gcf())
+plt.show()
+#%%
+"""show the images corresponding to projections to the latent space"""
+show_imgrid(latentvecs_to_image(proj2subspace(latents_reservoir[[0,-1]].flatten(1).double(),
+                                    latents_reservoir[[2]].flatten(1).double()), pipe))
+#%%
+subspace_variance(latents_reservoir[[1,-1]].double(), latents_reservoir[[0,1]].double())
+#%%
+subspace_variance(latents_reservoir[[1,2,-2]].double(), latents_reservoir[[0,-1]].double())
+#%%
+subspace_variance(latents_reservoir[[1,2,-2]].double(), latents_reservoir[[0]].double())
+#%%
+
 
 
 #%%
@@ -349,6 +452,65 @@ plt.show()
 #%%
 sns.heatmap(torch.corrcoef((latents_reservoir[1:]-latents_reservoir[:-1]).flatten(1).float(), ))
 plt.show()
+#%%
+"""PCA of the trajectory """
+latents_mat = latents_reservoir.flatten(1).double()
+latents_mat = latents_mat - latents_mat.mean(dim=0)
+U, D, V = torch.svd(latents_mat, )
+torch.cumsum(D**2 / (D**2).sum(), dim=0)
+# (D**2 / (D**2).sum(), )
+#%%
+projvar = (D[:2]**2).sum() / (D**2).sum()
+plt.figure(figsize=(6,6.5))
+plt.plot(U[:,0] * D[0], U[:,1] * D[1], "-")
+plt.scatter(U[:,0] * D[0], U[:,1] * D[1], c=range(len(U)))
+plt.xlabel("PC1")
+plt.ylabel("PC2")
+plt.axis("equal")
+plt.title(f"Latent state projection onto the first 2 PCs\n{projvar:.2%} of the variance is explained")
+saveallforms(savedir, "latent_traj_PC1_PC2_proj", plt.gcf())
+plt.show()
+#%%
+"""PCA of the trajectory """
+latents_mat = latents_reservoir.flatten(1).double()
+latents_diff_mat = latents_mat[1:] - latents_mat[:-1]
+U_diff, D_diff, V_diff = torch.svd(latents_diff_mat, )
+torch.cumsum(D_diff**2 / (D_diff**2).sum(), dim=0)
+# (D**2 / (D**2).sum(), )
+#%%
+"""Project the latent steps to different PC planes."""
+PCi = 0
+PCj = 1
+for PCi, PCj  in [(0,1), (0,2), (0,3), (1,2), (1,3), (2, 3)]:
+    projvar = (D_diff[[PCi,PCj]]**2).sum() / (D_diff**2).sum()
+    plt.figure(figsize=(6,6.5))
+    plt.plot(U_diff[:, PCi] * D_diff[PCi], U_diff[:,PCj] * D_diff[PCj], ":k", lw=1)
+    plt.scatter(U_diff[:,PCi] * D_diff[PCi], U_diff[:,PCj] * D_diff[PCj], c=range(len(U_diff)))
+    plt.xlabel(f"PC{PCi+1}")
+    plt.ylabel(f"PC{PCj+1}")
+    plt.axis("equal")
+    plt.title(f"Latent Step projection onto the 2 PCs (PC{PCi+1} vs PC{PCj+1})"
+              f"\n{projvar:.2%} of the variance is explained")
+    saveallforms(savedir, f"latent_diff_PC{PCi+1}_PC{PCj+1}_proj", plt.gcf())
+    plt.show()
+#%%
+latents_mat = latents_reservoir.flatten(1).double()
+latents_diff_mat = latents_mat[1:] - latents_mat[:-1]
+latent_diff_norm = latents_diff_mat.norm(dim=1)
+plt.plot(latent_diff_norm)
+plt.title("Norm of the latent step")
+plt.xlabel("t")
+plt.ylabel("norm")
+saveallforms(savedir, "latent_diff_norm", plt.gcf())
+plt.show()
+plt.plot(latents_mat.norm(dim=1))
+plt.title("Norm of the latent state")
+plt.xlabel("t")
+plt.ylabel("norm")
+saveallforms(savedir, "latent_state_norm", plt.gcf())
+plt.show()
+#%%
+show_imgrid(latentvecs_to_image(100*V[:,0:4].T,pipe))
 #%%
 """ Geometry of latent space evolution in the subspace spanned by the initial state and final states 
 un orthogonal basis
