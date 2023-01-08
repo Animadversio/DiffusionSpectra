@@ -31,6 +31,7 @@ def subspace_variance(X, subspace):
 import math
 from torchmetrics.functional import pairwise_cosine_similarity
 import matplotlib.pyplot as plt
+import seaborn as sns
 from core.utils.plot_utils import saveallforms
 def trajectory_geometry_pipeline(latents_reservoir, savedir):
     init_latent = latents_reservoir[:1].flatten(1).float()
@@ -63,7 +64,7 @@ def trajectory_geometry_pipeline(latents_reservoir, savedir):
     # %
     """The geometry of the differences"""
     plt.figure()
-    plt.scatter(proj_coef1[1:] - proj_coef1[:-1], proj_coef2[1:] - proj_coef2[:-1], c=range(50), label="latent diff")
+    plt.scatter(proj_coef1[1:] - proj_coef1[:-1], proj_coef2[1:] - proj_coef2[:-1], c=range(len(proj_coef2[1:])), label="latent diff")
     plt.plot(proj_coef1[1:] - proj_coef1[:-1], proj_coef2[1:] - proj_coef2[:-1], color="k", alpha=0.5)
     plt.axhline(0, color="k", linestyle="--", lw=0.5)
     plt.axvline(0, color="k", linestyle="--", lw=0.5)
@@ -97,6 +98,18 @@ def trajectory_geometry_pipeline(latents_reservoir, savedir):
     plt.ylabel("L2 norm")
     saveallforms(savedir, f"latent_trajectory_norm_trace", plt.gcf())
     plt.show()
+
+
+def diff_lag(x, lag=1, ):
+    assert lag >= 1
+    return x[lag:] - x[:-lag]
+
+
+def avg_cosine_sim_mat(X):
+    cosmat = pairwise_cosine_similarity(X,)
+    idxs = torch.tril_indices(cosmat.shape[0], cosmat.shape[1], offset=-1)
+    cosmat_vec = cosmat[idxs[0], idxs[1]]
+    return cosmat, cosmat_vec.mean()
 
 
 def diff_cosine_mat_analysis(latents_reservoir, savedir, lags=(1,2,3,4,5,10)):
@@ -142,6 +155,7 @@ def diff_cosine_mat_analysis(latents_reservoir, savedir, lags=(1,2,3,4,5,10)):
     plt.legend()
     saveallforms(savedir, f"cosine_trace_w_init_end_latent", figh)
     plt.show()
+
 
 
 def latent_PCA_analysis(latents_reservoir, savedir,
