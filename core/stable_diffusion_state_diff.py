@@ -82,32 +82,7 @@ os.makedirs(savedir, exist_ok=True)
 torch.save(latents_reservoir, join(savedir, "latents_reservoir.pt"))
 json.dump({"prompt": prompt, "tsteps": tsteps, "seed": seed}, open(join(savedir, "prompt.json"), "w"))
 #%%
-
-"""Geometric utils """
-def proj2subspace(A, b):
-    """ Project b onto the subspace spanned by A
-    Assume, A, b are both row vectors
-    """
-    return (A.T@torch.linalg.inv(A@A.T)@A@b.T).T
-
-
-def proj2orthospace(A, b):
-    """ Project b onto the subspace spanned by A
-    Assume, A, b are both row vectors
-    """
-    return b - (A.T@torch.linalg.inv(A@A.T)@A@b.T).T
-
-
-def subspace_variance(X, subspace):
-    """ Calculate the variance of X projected onto the subspace
-    """
-    if X.ndim != 2:
-        X = X.flatten(1)
-    if subspace.ndim != 2:
-        subspace = subspace.flatten(1)
-    X_proj = proj2subspace(subspace, X)
-    var_ratio = X_proj.norm(dim=1)**2 / X.norm(dim=1)**2
-    return var_ratio, 1 - var_ratio
+from diffusion_geometry_lib import proj2subspace, proj2orthospace, subspace_variance
 #%%
 def compute_save_diff_imgs(savedir, step_list, latents_reservoir, triu=True):
     """
