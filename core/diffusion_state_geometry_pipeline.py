@@ -46,9 +46,16 @@ sample_traj = torch.stack(sample_traj)
 #%%
 # model_id = "fusing/ddim-celeba-hq"
 
-model_id = "google/ddpm-celebahq-256"
-savedir = r"F:\insilico_exps\Diffusion_traj\face_ffhq"
-
+# model_id = "google/ddpm-cat-256"
+# model_id = "google/ddpm-ema-cat-256"
+# model_id = "google/ddpm-bedroom-256"
+# model_id = "google/ddpm-ema-bedroom-256"
+# model_id = "google/ddpm-church-256"
+# model_id = "google/ddpm-ema-church-256"
+# model_id = "google/ddpm-ema-celebahq-256"
+model_id = "google/ddpm-celebahq-256" # most popular
+model_id_short = model_id.split("/")[-1]
+saveroot = rf"F:\insilico_exps\Diffusion_traj\{model_id_short}"
 # load model and scheduler
 pipe = DDIMPipeline.from_pretrained(model_id)  # you can replace DDPMPipeline with DDIMPipeline or PNDMPipeline for faster inference
 pipe.unet.requires_grad_(False).eval().to("cuda")#.half()
@@ -65,20 +72,43 @@ def save_latents(i, t, latents):
     latents_reservoir.append(latents.detach().cpu())
 
 
-seed = 45
-tsteps = 51
+seed = 120
+tsteps = 101
 out = pipe(callback=save_latents, num_inference_steps=tsteps,
            generator=torch.cuda.manual_seed(seed))
 out.images[0].show()
 latents_reservoir = torch.cat(latents_reservoir, dim=0)
 #%% Utility functions for analysis
-#%%
+import json
 from core.diffusion_geometry_lib import proj2subspace, proj2orthospace, subspace_variance, \
-    trajectory_geometry_pipeline, latent_PCA_analysis, latent_diff_PCA_analysis
+    trajectory_geometry_pipeline, latent_PCA_analysis, latent_diff_PCA_analysis, diff_cosine_mat_analysis
+from core.diffusion_traj_analysis_lib import compute_save_diff_imgs_diff, plot_diff_matrix
 #%%
-savedir = r"F:\insilico_exps\Diffusion_traj\face_ffhq"
+savedir = join(saveroot, f"seed{seed}")
 os.makedirs(savedir, exist_ok=True)
-# trajectory_geometry_pipeline(latents_reservoir, savedir, )
+torch.save(latents_reservoir, join(savedir, "state_reservoir.pt"))
+json.dump({"tsteps": tsteps, "seed": seed}, open(join(savedir, "prompt.json"), "w"))
+#%%
+trajectory_geometry_pipeline(latents_reservoir, savedir, )
+diff_cosine_mat_analysis(latents_reservoir, savedir, )
+expvar_vec, U, D, V = latent_PCA_analysis(latents_reservoir, savedir, )
+expvar_diff, U_diff, D_diff, V_diff = latent_diff_PCA_analysis(latents_reservoir, savedir, )
+#%%
+compute_save_diff_imgs_diff(savedir, range(0, 51, 5), latents_reservoir)
+plot_diff_matrix(savedir, range(0, 51, 5), diff_x_sfx="_img_stdnorm", step_x_sfx="_img_stdnorm",
+                 save_sfx="_img_stdnorm", tril=True)
+#%%
+compute_save_diff_imgs_diff(savedir, range(0, 16, 1), latents_reservoir)
+plot_diff_matrix(savedir, range(0, 16, 1), diff_x_sfx="_img_stdnorm", step_x_sfx="_img_stdnorm",
+                 save_sfx="_img_stdnorm_early0-15", tril=True)
+#%%
+compute_save_diff_imgs_diff(savedir, range(0, 101, 10), latents_reservoir)
+plot_diff_matrix(savedir, range(0, 101, 10), diff_x_sfx="_img_stdnorm", step_x_sfx="_img_stdnorm",
+                 save_sfx="_img_stdnorm_101", tril=True)
+
+
+
+#%%
 import math
 from torchmetrics.functional import pairwise_cosine_similarity
 import matplotlib.pyplot as plt
@@ -99,8 +129,9 @@ residue_frac = residue.norm(dim=1) ** 2 / latents_reservoir.flatten(1).float().n
 #%%
 show_imgrid((latents_reservoir[5]-latents_reservoir[0])*20 +0.5)
 #%%
-expvar_vec, U, D, V = latent_PCA_analysis(latents_reservoir, savedir, )
-expvar_diff, U_diff, D_diff, V_diff = latent_diff_PCA_analysis(latents_reservoir, savedir, )
-#%%
-
-trajectory_geometry_pipeline(latents_reservoir, savedir, )
+# model_id = "CompVis/ldm-text2im-large-256"
+model_id = "CompVis/ldm-celebahq-256"
+# load model and scheduler
+pipeline = DiffusionPipeline.from_pretrained(model_id)
+# run pipeline in inference (sample random noise and denoise)
+image = pipeline(num_inference_steps=200)["sample"]
