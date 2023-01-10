@@ -72,8 +72,8 @@ def save_latents(i, t, latents):
     latents_reservoir.append(latents.detach().cpu())
 
 
-seed = 120
-tsteps = 101
+seed = 1520
+tsteps = 51
 out = pipe(callback=save_latents, num_inference_steps=tsteps,
            generator=torch.cuda.manual_seed(seed))
 out.images[0].show()

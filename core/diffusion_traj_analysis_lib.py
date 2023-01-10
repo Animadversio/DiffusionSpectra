@@ -72,8 +72,8 @@ def compute_save_diff_imgs_ldm(savedir, step_list, latents_reservoir, pipe, triu
     :param triu:
     :return:
     """
-    mean_fin = latents_reservoir[-1].mean(dim=0)
-    std_fin = latents_reservoir[-1].std(dim=0)
+    mean_fin = latents_reservoir[-1].mean()  #(dim=0)
+    std_fin = latents_reservoir[-1].std()  #(dim=0)
     for i in step_list:
         latent = latents_reservoir[i]
         save_imgrid(denorm_std(latent[:, None, :, :]),
