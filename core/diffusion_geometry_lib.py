@@ -48,10 +48,11 @@ def trajectory_geometry_pipeline(latents_reservoir, savedir):
     residue_frac = residue.norm(dim=1) ** 2 / latents_reservoir.flatten(1).float().norm(dim=1) ** 2
 
     """plot latent space trajectory on the 2d plane spanned by the initial and final states"""
-    plt.figure()
+    plt.figure(figsize=(6, 6.5))
     plt.plot([0, proj_coef1[0].item()], [0, proj_coef2[0].item()], label="noise init", color="r")
     plt.plot([0, proj_coef1[-1].item()], [0, proj_coef2[-1].item()], label="final latent", color="g")
     plt.scatter(proj_coef1, proj_coef2, label="latent trajectory")
+    plt.axis("equal")
     plt.axhline(0, color="k", linestyle="--", lw=0.5)
     plt.axvline(0, color="k", linestyle="--", lw=0.5)
     plt.legend()
@@ -63,7 +64,7 @@ def trajectory_geometry_pipeline(latents_reservoir, savedir):
     plt.show()
     # %
     """The geometry of the differences"""
-    plt.figure()
+    plt.figure(figsize=(6, 6.5))
     plt.scatter(proj_coef1[1:] - proj_coef1[:-1], proj_coef2[1:] - proj_coef2[:-1], c=range(len(proj_coef2[1:])), label="latent diff")
     plt.plot(proj_coef1[1:] - proj_coef1[:-1], proj_coef2[1:] - proj_coef2[:-1], color="k", alpha=0.5)
     plt.axhline(0, color="k", linestyle="--", lw=0.5)
@@ -98,62 +99,13 @@ def trajectory_geometry_pipeline(latents_reservoir, savedir):
     plt.ylabel("L2 norm")
     saveallforms(savedir, f"latent_trajectory_norm_trace", plt.gcf())
     plt.show()
-
-
-def diff_lag(x, lag=1, ):
-    assert lag >= 1
-    return x[lag:] - x[:-lag]
-
-
-def avg_cosine_sim_mat(X):
-    cosmat = pairwise_cosine_similarity(X,)
-    idxs = torch.tril_indices(cosmat.shape[0], cosmat.shape[1], offset=-1)
-    cosmat_vec = cosmat[idxs[0], idxs[1]]
-    return cosmat, cosmat_vec.mean()
-
-
-def diff_cosine_mat_analysis(latents_reservoir, savedir, lags=(1,2,3,4,5,10)):
-    for lag in lags:
-        cosmat, cosmat_avg = avg_cosine_sim_mat(diff_lag(latents_reservoir, lag).flatten(1).float())
-        figh = plt.figure(figsize=(7, 6))
-        sns.heatmap(cosmat, cmap="coolwarm", vmin=-1, vmax=1)
-        plt.axis("image")
-        plt.title(
-            f"cosine similarity matrix of latent states diff z_t+{lag} - z_t\n avg cosine={cosmat_avg:.3f} lag={lag}")
-        plt.xlabel("t1")
-        plt.ylabel("t2")
-        saveallforms(savedir, f"cosine_mat_latent_diff_lag{lag}", figh)
-        plt.show()
-
-    for lag in lags:
-        cosvec_end = pairwise_cosine_similarity(diff_lag(latents_reservoir, lag).flatten(1).float(),
-                                                latents_reservoir[-1:].flatten(1).float())
-        cosvec_init = pairwise_cosine_similarity(diff_lag(latents_reservoir, lag).flatten(1).float(),
-                                                 latents_reservoir[:1].flatten(1).float())
-        figh = plt.figure()
-        plt.plot(cosvec_end, label="with end z_T")
-        plt.plot(cosvec_init, label="with init z_0")
-        plt.axhline(0, color="k", linestyle="--")
-        plt.title(f"cosine similarity of latent states diff z_t+{lag} - z_t with z_0, z_T")
-        plt.xlabel("t")
-        plt.ylabel("cosine similarity")
-        plt.legend()
-        saveallforms(savedir, f"cosine_trace_w_init_end_latent_diff_lag{lag}", figh)
-        plt.show()
-
-    cosvec_end = pairwise_cosine_similarity(latents_reservoir.flatten(1).float(),
-                                            latents_reservoir[-1:].flatten(1).float())
-    cosvec_init = pairwise_cosine_similarity(latents_reservoir.flatten(1).float(),
-                                             latents_reservoir[:1].flatten(1).float())
-    figh = plt.figure()
-    plt.plot(cosvec_end, label="with end z_T")
-    plt.plot(cosvec_init, label="with init z_0")
-    plt.axhline(0, color="k", linestyle="--")
-    plt.title(f"cosine similarity of latent states z_t with z_0, z_T")
+    """There is little variance of vector norm"""
+    plt.figure()
+    plt.plot((latents_reservoir[1:] - latents_reservoir[:-1]).flatten(1).float().norm(dim=1))
+    plt.title("Norm of latent states diff")
     plt.xlabel("t")
-    plt.ylabel("cosine similarity")
-    plt.legend()
-    saveallforms(savedir, f"cosine_trace_w_init_end_latent", figh)
+    plt.ylabel("L2 norm")
+    saveallforms(savedir, f"latent_diff_norm_trace", plt.gcf())
     plt.show()
 
 
@@ -217,3 +169,63 @@ def latent_diff_PCA_analysis(latents_reservoir, savedir,
         saveallforms(savedir, f"latent_diff_PC{PCi + 1}_PC{PCj + 1}_proj", plt.gcf())
         plt.show()
     return expvar_diff, U_diff, D_diff, V_diff
+
+
+""" Correlogram of the latent state difference """
+def diff_lag(x, lag=1, ):
+    assert lag >= 1
+    return x[lag:] - x[:-lag]
+
+
+def avg_cosine_sim_mat(X):
+    cosmat = pairwise_cosine_similarity(X,)
+    idxs = torch.tril_indices(cosmat.shape[0], cosmat.shape[1], offset=-1)
+    cosmat_vec = cosmat[idxs[0], idxs[1]]
+    return cosmat, cosmat_vec.mean()
+
+
+def diff_cosine_mat_analysis(latents_reservoir, savedir, lags=(1,2,3,4,5,10)):
+    for lag in lags:
+        cosmat, cosmat_avg = avg_cosine_sim_mat(diff_lag(latents_reservoir, lag).flatten(1).float())
+        figh = plt.figure(figsize=(7, 6))
+        sns.heatmap(cosmat, cmap="coolwarm", vmin=-1, vmax=1)
+        plt.axis("image")
+        plt.title(
+            f"cosine similarity matrix of latent states diff z_t+{lag} - z_t\n avg cosine={cosmat_avg:.3f} lag={lag}")
+        plt.xlabel("t1")
+        plt.ylabel("t2")
+        saveallforms(savedir, f"cosine_mat_latent_diff_lag{lag}", figh)
+        plt.show()
+
+    for lag in lags:
+        cosvec_end = pairwise_cosine_similarity(diff_lag(latents_reservoir, lag).flatten(1).float(),
+                                                latents_reservoir[-1:].flatten(1).float())
+        cosvec_init = pairwise_cosine_similarity(diff_lag(latents_reservoir, lag).flatten(1).float(),
+                                                 latents_reservoir[:1].flatten(1).float())
+        figh = plt.figure()
+        plt.plot(cosvec_end, label="with end z_T")
+        plt.plot(cosvec_init, label="with init z_0")
+        plt.axhline(0, color="k", linestyle="--")
+        plt.title(f"cosine similarity of latent states diff z_t+{lag} - z_t with z_0, z_T")
+        plt.xlabel("t")
+        plt.ylabel("cosine similarity")
+        plt.legend()
+        saveallforms(savedir, f"cosine_trace_w_init_end_latent_diff_lag{lag}", figh)
+        plt.show()
+
+    cosvec_end = pairwise_cosine_similarity(latents_reservoir.flatten(1).float(),
+                                            latents_reservoir[-1:].flatten(1).float())
+    cosvec_init = pairwise_cosine_similarity(latents_reservoir.flatten(1).float(),
+                                             latents_reservoir[:1].flatten(1).float())
+    figh = plt.figure()
+    plt.plot(cosvec_end, label="with end z_T")
+    plt.plot(cosvec_init, label="with init z_0")
+    plt.axhline(0, color="k", linestyle="--")
+    plt.title(f"cosine similarity of latent states z_t with z_0, z_T")
+    plt.xlabel("t")
+    plt.ylabel("cosine similarity")
+    plt.legend()
+    saveallforms(savedir, f"cosine_trace_w_init_end_latent", figh)
+    plt.show()
+
+
