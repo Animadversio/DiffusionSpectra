@@ -16,6 +16,7 @@ def denorm_std(x):
 
 
 def denorm_sample_std(x):
+    raise ValueError
     return ((x - x.mean(dim=0, keepdims=True)) / x.std(dim=0, keepdims=True) * 0.4 + 1) / 2
 
 
@@ -50,16 +51,24 @@ def compute_save_diff_imgs_diff(savedir, step_list, latents_reservoir, triu=True
     :param triu:
     :return:
     """
+    if latents_reservoir.ndim == 4:
+        latents_reservoir = latents_reservoir[:, None, :, :, :]
+        nrow = 1
+    elif latents_reservoir.ndim == 5:
+        batch_size = latents_reservoir.shape[1]
+        nrow = int(math.sqrt(batch_size))
+    else:
+        raise ValueError("latents_reservoir should be 4 or 5 dim")
     for i in step_list:
         latent = latents_reservoir[i]
-        save_imgrid(denorm_std(latent[None, :, :, :]),
-                        join(savedir, f"diffusion_step_{i:02d}_img_stdnorm.png"), nrow=2)
+        save_imgrid(denorm_std(latent),
+                    join(savedir, f"diffusion_step_{i:02d}_img_stdnorm.png"), nrow=nrow)
         for j in step_list:
             if triu and j <= i:
                 continue
             latent_diff = latents_reservoir[j] - latents_reservoir[i]
-            save_imgrid(denorm_std(latent_diff[None, :, :, :]),
-                        join(savedir, f"diffusion_traj_{j:02d}-{i:02d}_img_stdnorm.png"), nrow=2, )
+            save_imgrid(denorm_std(latent_diff),
+                        join(savedir, f"diffusion_traj_{j:02d}-{i:02d}_img_stdnorm.png"), nrow=nrow, )
 
 
 def compute_save_diff_imgs_ldm(savedir, step_list, latents_reservoir, pipe, triu=True):
@@ -127,3 +136,22 @@ def plot_diff_matrix(savedir, step_list, diff_x_sfx="", step_x_sfx="", save_sfx=
     saveallforms(savedir, f"diffusion_traj_diff_mtg{save_sfx}", figh)
     plt.show()
     return figh
+
+
+from core.diffusion_geometry_lib import proj2orthospace
+def visualize_traj_2d_cycle(latents_reservoir, pipe, savedir, ticks=range(0,360,10)):
+    """Plot the 2d cycle of the latent states plane of trajectory"""
+    init_latent = latents_reservoir[:1].flatten(1).float()
+    end_latent = latents_reservoir[-1:].flatten(1).float()
+    unitbasis1 = end_latent / end_latent.norm()  # end state
+    unitbasis2 = proj2orthospace(end_latent, init_latent)  # init noise that is ortho to the end state
+    unitbasis2 = unitbasis2 / unitbasis2.norm()  # unit normalize
+    imgtsrs = []
+    for phi in tqdm(ticks):
+        phi = phi * np.pi / 180
+        imgtsr = latentvecs_to_image((unitbasis2 * math.sin(phi) +
+                                      unitbasis1 * math.cos(phi)) * end_latent.norm(), pipe)
+        imgtsrs.append(imgtsr)
+    imgtsrs = torch.cat(imgtsrs, dim=0)
+    show_imgrid(imgtsrs, nrow=9)
+    save_imgrid(imgtsrs, join(savedir, "latent_2d_cycle_visualization.png"), nrow=9)

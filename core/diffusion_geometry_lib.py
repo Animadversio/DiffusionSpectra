@@ -32,7 +32,8 @@ import math
 from torchmetrics.functional import pairwise_cosine_similarity
 import matplotlib.pyplot as plt
 import seaborn as sns
-from core.utils.plot_utils import saveallforms
+from core.utils.plot_utils import saveallforms, save_imgrid, join
+from core.diffusion_traj_analysis_lib import latentvecs_to_image, denorm_var
 def trajectory_geometry_pipeline(latents_reservoir, savedir):
     init_latent = latents_reservoir[:1].flatten(1).float()
     end_latent = latents_reservoir[-1:].flatten(1).float()
@@ -169,6 +170,83 @@ def latent_diff_PCA_analysis(latents_reservoir, savedir,
         saveallforms(savedir, f"latent_diff_PC{PCi + 1}_PC{PCj + 1}_proj", plt.gcf())
         plt.show()
     return expvar_diff, U_diff, D_diff, V_diff
+
+
+def PCA_data_visualize(latents_reservoir, U_diff, D_diff, V_diff, savedir, topcurv_num=8, topImg_num=16, prefix="latent_diff"):
+    """
+    Example:
+        PCA_data_visualize(latents_reservoir, U, D, V, savedir, topcurv_num=8, topImg_num=16, prefix="latent_traj")
+        PCA_data_visualize(latents_reservoir, U_diff, D_diff, V_diff, savedir, topcurv_num=8, topImg_num=16, prefix="latent_diff")
+
+    :param U_diff:
+    :param D_diff:
+    :param V_diff:
+    :param savedir:
+    :param topcurv_num:
+    :param topImg_num:
+    :param prefix:
+    :return:
+    """
+    plt.figure()
+    plt.plot(U_diff[:, :topcurv_num] * D_diff[:topcurv_num], lw=2.5, alpha=0.7)
+    plt.legend([f"PC{i + 1}" for i in range(topcurv_num)])
+    plt.title(f"PCs of the {prefix}")
+    plt.ylabel("PC projection")
+    plt.xlabel("Time step")
+    saveallforms(savedir, f"{prefix}_PCA_projcurve")
+    plt.show()
+    plt.figure()
+    plt.plot(U_diff[:, :topcurv_num], lw=2.5, alpha=0.7)
+    plt.legend([f"PC{i + 1}" for i in range(topcurv_num)])
+    plt.title(f"PCs of the {prefix}")
+    plt.ylabel("PC projection (norm 1)")
+    plt.xlabel("Time step")
+    saveallforms(savedir, f"{prefix}_PCA_projcurve_norm1")
+    plt.show()
+    PC_imgs = V_diff[:, :topImg_num].T
+    PC_imgs = PC_imgs.reshape(topImg_num, *latents_reservoir.shape[-3:])
+    PC_imgs_norm = (PC_imgs) / PC_imgs.std(dim=(1, 2, 3), keepdim=True) * 0.2 + 0.5
+    save_imgrid(PC_imgs_norm, join(savedir, f"{prefix}_topPC_imgs_vis.png"), nrow=4, )
+
+
+def ldm_PCA_data_visualize(latents_reservoir, pipe, U_diff, D_diff, V_diff, savedir, topcurv_num=8, topImg_num=16, prefix="latent_diff"):
+    """
+    Example:
+        PCA_data_visualize(latents_reservoir, U, D, V, savedir, topcurv_num=8, topImg_num=16, prefix="latent_traj")
+        PCA_data_visualize(latents_reservoir, U_diff, D_diff, V_diff, savedir, topcurv_num=8, topImg_num=16, prefix="latent_diff")
+
+    :param U_diff:
+    :param D_diff:
+    :param V_diff:
+    :param savedir:
+    :param topcurv_num:
+    :param topImg_num:
+    :param prefix:
+    :return:
+    """
+    plt.figure()
+    plt.plot(U_diff[:, :topcurv_num] * D_diff[:topcurv_num], lw=2.5, alpha=0.7)
+    plt.legend([f"PC{i + 1}" for i in range(topcurv_num)])
+    plt.title(f"PCs of the {prefix}")
+    plt.ylabel("PC projection")
+    plt.xlabel("Time step")
+    saveallforms(savedir, f"{prefix}_PCA_projcurve")
+    plt.show()
+    plt.figure()
+    plt.plot(U_diff[:, :topcurv_num], lw=2.5, alpha=0.7)
+    plt.legend([f"PC{i + 1}" for i in range(topcurv_num)])
+    plt.title(f"PCs of the {prefix}")
+    plt.ylabel("PC projection (norm 1)")
+    plt.xlabel("Time step")
+    saveallforms(savedir, f"{prefix}_PCA_projcurve_norm1")
+    plt.show()
+    # denorm_var(latent_diff[None, :], mean_fin, std_fin)
+    PC_imgs = latentvecs_to_image(100 * V_diff[:, 0:topImg_num].T, pipe)
+    save_imgrid(PC_imgs, join(savedir, f"{prefix}_topPC_imgs_vae_decode.png"), nrow=4,)
+    # PC_imgs = V_diff[:, :topImg_num].T
+    # PC_imgs = PC_imgs.reshape(topImg_num, *latents_reservoir.shape[-3:])
+    # PC_imgs_norm = (PC_imgs) / PC_imgs.std(dim=(1, 2, 3), keepdim=True) * 0.2 + 0.5
+    # save_imgrid(PC_imgs_norm, join(savedir, f"{prefix}_topPC_imgs_vis.png"), nrow=4, )
 
 
 """ Correlogram of the latent state difference """
