@@ -39,6 +39,8 @@ tsteps = 51
 # prompt = "a classy ballet flat with a bow on the toe on a wooden floor"
 prompt = "a cat riding a motor cycle in a desert in a bright sunny day"
 prompt = "a bowl of soup looks like a portal to another dimension"
+prompt = "a box containing an apple and a toy teddy bear"
+prompt = "a photo of a photo of a photo of a photo of a cute dog"
 out = pipe(prompt, callback=save_latents,
            num_inference_steps=tsteps, generator=torch.cuda.manual_seed(seed))
 out.images[0].show()
@@ -46,7 +48,7 @@ latents_reservoir = torch.cat(latents_reservoir, dim=0)
 #%% Utility functions for analysis
 from core.diffusion_geometry_lib import proj2subspace, proj2orthospace, subspace_variance, \
         trajectory_geometry_pipeline, diff_cosine_mat_analysis, \
-        latent_PCA_analysis, latent_diff_PCA_analysis
+        latent_PCA_analysis, latent_diff_PCA_analysis, PCA_data_visualize
 from core.diffusion_traj_analysis_lib import \
     denorm_std, denorm_var, denorm_sample_std, \
     latents_to_image, latentvecs_to_image, \
@@ -58,6 +60,8 @@ savedir = r"F:\insilico_exps\Diffusion_traj\StableDiffusion\ballerina_van_gogh"
 savedir = r"F:\insilico_exps\Diffusion_traj\StableDiffusion\ballet_flats"
 savedir = r"F:\insilico_exps\Diffusion_traj\StableDiffusion\cat_motorcycle"
 savedir = r"F:\insilico_exps\Diffusion_traj\StableDiffusion\bowl_portal"
+savedir = r"F:\insilico_exps\Diffusion_traj\StableDiffusion\box_teddy_bear"
+savedir = r"F:\insilico_exps\Diffusion_traj\StableDiffusion\photo_photo_photo_dog"
 os.makedirs(savedir, exist_ok=True)
 
 torch.save(latents_reservoir, join(savedir, "latents_reservoir.pt"))
@@ -106,19 +110,31 @@ plot_diff_matrix(savedir, range(0, 21, 2),
                  diff_x_sfx="_latent_stdnorm", step_x_sfx="_latent_stdnorm", save_sfx="_latent_stdnorm_early0-20")
 
 #%%
-""" Correlogram of the latent state difference """
 
 #%%
-"""Geometry of the trajectory in 2d projection"""
+""" Correlogram of the latent state difference """
 diff_cosine_mat_analysis(latents_reservoir, savedir, lags=(1,2,3,4,5,10))
 """Geometry of the trajectory in 2d projection"""
 trajectory_geometry_pipeline(latents_reservoir, savedir)
 visualize_traj_2d_cycle(latents_reservoir, pipe, savedir)
-#%%
 """PCA analysis of the latent state / difference"""
-latent_PCA_analysis(latents_reservoir, savedir,)
-latent_diff_PCA_analysis(latents_reservoir, savedir,)
+expvar, U, D, V = latent_PCA_analysis(latents_reservoir, savedir,)
+expvar_diff, U_diff, D_diff, V_diff = latent_diff_PCA_analysis(latents_reservoir, savedir,
+                           proj_planes=[(0, 1), (0, 2), (0, 3), (0,4),(1, 2), (1, 3), (1,4), (2, 3), (2,4),(3,4)])
+PCA_data_visualize(latents_reservoir, U, D, V, savedir, topcurv_num=8, topImg_num=16, prefix="latent_traj")
+PCA_data_visualize(latents_reservoir, U_diff, D_diff, V_diff, savedir, topcurv_num=8, topImg_num=16, prefix="latent_diff")
+#%%
+show_imgrid(latentvecs_to_image(100 * V_diff[:,0:8].T,pipe))
+#%%
 
+show_imgrid(latentvecs_to_image(100 * V_diff[:,20:25].T,pipe))
+
+#%%
+plt.plot(U_diff[:,0:6])
+plt.legend([f"PC{i}" for i in range(6)])
+plt.title("PCs of the latent state difference")
+# plt.savefig(join(savedir, "latent_diff_PCA.png"))
+plt.show()
 
 #%%
 latents_norm = latents_reservoir.flatten(1).double().norm(dim=1)

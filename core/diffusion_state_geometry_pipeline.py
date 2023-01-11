@@ -11,38 +11,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from torchvision.utils import save_image, make_grid
 from core.utils.plot_utils import show_imgrid, save_imgrid, saveallforms
-#%
-# computation code
-def sampling(unet, scheduler, batch_size=1):
-    noisy_sample = torch.randn(
-        batch_size, unet.config.in_channels, unet.config.sample_size, unet.config.sample_size
-    ).to(unet.device).to(unet.dtype)
-    t_traj, sample_traj, residual_traj = [], [], []
-    sample = noisy_sample
-
-    for i, t in enumerate(tqdm(scheduler.timesteps)):
-        # 1. predict noise residual
-        with torch.no_grad():
-            residual = unet(sample, t).sample
-
-        # 2. compute previous image and set x_t -> x_t-1
-        sample = scheduler.step(residual, t, sample).prev_sample
-
-        residual_traj.append(residual.cpu().detach())
-        sample_traj.append(sample.cpu().detach())
-        t_traj.append(t)
-    return sample, sample_traj, t_traj
-#%%
-repo_id = "google/ddpm-cifar10-32"  # Note this model has self-attention in it.
-# repo_id = "nbonaker/ddpm-celeb-face-32"
-model = UNet2DModel.from_pretrained(repo_id)
-model.requires_grad_(False).eval().to("cuda")#.half()
-scheduler = DDIMScheduler.from_pretrained(repo_id)
-scheduler.set_timesteps(num_inference_steps=100, )
-#%%
-sample, sample_traj, t_traj = sampling(model, scheduler, batch_size=64)
-show_imgrid((sample + 1) / 2)
-sample_traj = torch.stack(sample_traj)
+#% Utility functions for analysis
+import json
+from core.diffusion_geometry_lib import proj2subspace, proj2orthospace, subspace_variance, \
+    trajectory_geometry_pipeline, latent_PCA_analysis, latent_diff_PCA_analysis, diff_cosine_mat_analysis, PCA_data_visualize
+from core.diffusion_traj_analysis_lib import compute_save_diff_imgs_diff, plot_diff_matrix
 #%%
 # model_id = "fusing/ddim-celeba-hq"
 
@@ -78,11 +51,6 @@ out = pipe(callback=save_latents, num_inference_steps=tsteps,
            generator=torch.cuda.manual_seed(seed))
 out.images[0].show()
 latents_reservoir = torch.cat(latents_reservoir, dim=0)
-#%% Utility functions for analysis
-import json
-from core.diffusion_geometry_lib import proj2subspace, proj2orthospace, subspace_variance, \
-    trajectory_geometry_pipeline, latent_PCA_analysis, latent_diff_PCA_analysis, diff_cosine_mat_analysis
-from core.diffusion_traj_analysis_lib import compute_save_diff_imgs_diff, plot_diff_matrix
 #%%
 savedir = join(saveroot, f"seed{seed}")
 os.makedirs(savedir, exist_ok=True)
@@ -93,6 +61,9 @@ trajectory_geometry_pipeline(latents_reservoir, savedir, )
 diff_cosine_mat_analysis(latents_reservoir, savedir, )
 expvar_vec, U, D, V = latent_PCA_analysis(latents_reservoir, savedir, )
 expvar_diff, U_diff, D_diff, V_diff = latent_diff_PCA_analysis(latents_reservoir, savedir, )
+PCA_data_visualize(latents_reservoir, U, D, V, savedir, topcurv_num=8, topImg_num=16, prefix="latent_traj")
+PCA_data_visualize(latents_reservoir, U_diff, D_diff, V_diff, savedir, topcurv_num=8, topImg_num=16, prefix="latent_diff")
+
 #%%
 compute_save_diff_imgs_diff(savedir, range(0, 51, 5), latents_reservoir)
 plot_diff_matrix(savedir, range(0, 51, 5), diff_x_sfx="_img_stdnorm", step_x_sfx="_img_stdnorm",
@@ -105,6 +76,60 @@ plot_diff_matrix(savedir, range(0, 16, 1), diff_x_sfx="_img_stdnorm", step_x_sfx
 compute_save_diff_imgs_diff(savedir, range(0, 101, 10), latents_reservoir)
 plot_diff_matrix(savedir, range(0, 101, 10), diff_x_sfx="_img_stdnorm", step_x_sfx="_img_stdnorm",
                  save_sfx="_img_stdnorm_101", tril=True)
+
+
+#%%
+"""Most simple model"""
+# model_id = "google/ddpm-cifar10-32"
+model_id = "dimpo/ddpm-mnist"  # most popular
+model_id_short = model_id.split("/")[-1]
+saveroot = rf"F:\insilico_exps\Diffusion_traj\{model_id_short}"
+# load model and scheduler
+pipe = DDIMPipeline.from_pretrained(model_id)  # you can replace DDPMPipeline with DDIMPipeline or PNDMPipeline for faster inference
+pipe.unet.requires_grad_(False).eval().to("cuda")#.half()
+#%%
+# image = pipe(batch_size=64)
+# show_imgrid(latents_reservoir[50] * 0.5 + 0.5)
+#%%
+latents_reservoir = []
+@torch.no_grad()
+def save_latents(i, t, latents):
+    latents_reservoir.append(latents.detach().cpu())
+
+
+seed = 120
+tsteps = 51
+out = pipe(callback=save_latents, num_inference_steps=tsteps, batch_size=1,
+           generator=torch.cuda.manual_seed(seed))
+out.images[0].show()
+latents_reservoir = torch.stack(latents_reservoir, dim=0)
+show_imgrid(latents_reservoir[50] * 0.5 + 0.5)
+#%%
+savedir = join(saveroot, f"seed{seed}")
+os.makedirs(savedir, exist_ok=True)
+torch.save(latents_reservoir, join(savedir, "state_reservoir.pt"))
+json.dump({"tsteps": tsteps, "seed": seed}, open(join(savedir, "prompt.json"), "w"))
+#%%
+trajectory_geometry_pipeline(latents_reservoir, savedir, )
+diff_cosine_mat_analysis(latents_reservoir, savedir, )
+expvar_vec, U, D, V = latent_PCA_analysis(latents_reservoir, savedir, )
+expvar_diff, U_diff, D_diff, V_diff = latent_diff_PCA_analysis(latents_reservoir, savedir, )
+#%%
+PCA_data_visualize(latents_reservoir, U, D, V, savedir, topcurv_num=8, topImg_num=16, prefix="latent_traj")
+PCA_data_visualize(latents_reservoir, U_diff, D_diff, V_diff, savedir, topcurv_num=8, topImg_num=16, prefix="latent_diff")
+
+
+#%%
+compute_save_diff_imgs_diff(savedir, range(0, 16, 1), latents_reservoir)
+plot_diff_matrix(savedir, range(0, 16, 1), diff_x_sfx="_img_stdnorm", step_x_sfx="_img_stdnorm",
+                 save_sfx="_img_stdnorm_early0-15", tril=True)
+#%%
+
+
+
+
+
+
 
 
 
@@ -135,3 +160,32 @@ model_id = "CompVis/ldm-celebahq-256"
 pipeline = DiffusionPipeline.from_pretrained(model_id)
 # run pipeline in inference (sample random noise and denoise)
 image = pipeline(num_inference_steps=200)["sample"]
+#%%
+#%% Dev zone
+expvar_diff, U_diff, D_diff, V_diff = latent_diff_PCA_analysis(latents_reservoir, savedir, )
+topPC_num = 8
+plt.figure()
+plt.plot(U_diff[:,:topPC_num] * D_diff[:topPC_num], lw=2.5, alpha=0.7)
+plt.legend([f"PC{i+1}" for i in range(topPC_num)])
+plt.title("PCs of the latent state difference")
+plt.ylabel("PC projection")
+plt.xlabel("Time step")
+saveallforms(savedir, "latent_diff_PCA_projcurve")
+plt.show()
+plt.figure()
+plt.plot(U_diff[:,:topPC_num], lw=2.5, alpha=0.7)
+plt.legend([f"PC{i+1}" for i in range(topPC_num)])
+plt.title("PCs of the latent state difference")
+plt.ylabel("PC projection (norm 1)")
+plt.xlabel("Time step")
+saveallforms(savedir, "latent_diff_PCA_projcurve_norm1")
+plt.show()
+topPC_num = 16
+PC_imgs = V_diff[:, :topPC_num].T
+PC_imgs = PC_imgs.reshape(topPC_num, *latents_reservoir.shape[-3:])
+PC_imgs_norm = (PC_imgs) / PC_imgs.std(dim=(1, 2, 3), keepdim=True) * 0.2 + 0.5
+save_imgrid(PC_imgs_norm, join(savedir, "latent_diff_topPC_imgs_vis.png"), nrow=4, )
+#%%
+compute_save_diff_imgs_diff(savedir, range(0, 51, 5), latents_reservoir)
+plot_diff_matrix(savedir, range(0, 51, 5), diff_x_sfx="_img_stdnorm", step_x_sfx="_img_stdnorm",
+                 save_sfx="_img_stdnorm", tril=True)
