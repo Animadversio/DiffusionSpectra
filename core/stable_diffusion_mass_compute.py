@@ -40,7 +40,11 @@ matplotlib.use('Agg')
 
 # matplotlib.use('module://backend_interagg')
 #%%
-
+import platform
+if platform.system() == "Windows":
+    saveroot = r"F:\insilico_exps\Diffusion_traj\StableDiffusion"
+elif platform.system() == "Linux":
+    saveroot = r"/home/binxuwang/insilico_exp/Diffusion_traj/StableDiffusion"
 # prompt = "a cute and classy mice wearing dress and heels"
 # prompt = "a beautiful ballerina in yellow dress under the starry night in Van Gogh style"
 # prompt = "a classy ballet flat with a bow on the toe on a wooden floor"
@@ -50,7 +54,7 @@ matplotlib.use('Agg')
 # prompt = "a photo of a photo of a photo of a photo of a cute dog"
 prompt = "a large box containing an apple and a toy teddy bear"
 tsteps = 51
-for seed in range(101, 150):
+for seed in range(102, 150):
     latents_reservoir = []
     @torch.no_grad()
     def save_latents(i, t, latents):
@@ -59,10 +63,10 @@ for seed in range(101, 150):
     # seed = 45
     out = pipe(prompt, callback=save_latents,
                num_inference_steps=tsteps, generator=torch.cuda.manual_seed(seed))
-    out.images[0].show()
+    # out.images[0].show()
     latents_reservoir = torch.cat(latents_reservoir, dim=0)
     # savedir = rf"F:\insilico_exps\Diffusion_traj\StableDiffusion\mice_dress_heels-seed{seed}"
-    savedir = rf"F:\insilico_exps\Diffusion_traj\StableDiffusion\box_apple_bear-seed{seed}"
+    savedir = join(saveroot, f"box_apple_bear-seed{seed}")
     os.makedirs(savedir, exist_ok=True)
 
     torch.save(latents_reservoir, join(savedir, "latents_reservoir.pt"))

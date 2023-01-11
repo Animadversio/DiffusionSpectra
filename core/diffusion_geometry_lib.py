@@ -108,6 +108,8 @@ def trajectory_geometry_pipeline(latents_reservoir, savedir):
     plt.ylabel("L2 norm")
     saveallforms(savedir, f"latent_diff_norm_trace", plt.gcf())
     plt.show()
+    plt.close("all")
+
 
 
 
@@ -138,6 +140,8 @@ def latent_PCA_analysis(latents_reservoir, savedir,
                   f"\n{projvar:.2%} of the variance is explained")
         saveallforms(savedir, f"latent_traj_PC{PCi + 1}_PC{PCj + 1}_proj", plt.gcf())
         plt.show()
+    plt.close("all")
+
     return expvar_vec, U, D, V
 
 
@@ -169,6 +173,8 @@ def latent_diff_PCA_analysis(latents_reservoir, savedir,
                   f"\n{projvar:.2%} of the variance is explained")
         saveallforms(savedir, f"latent_diff_PC{PCi + 1}_PC{PCj + 1}_proj", plt.gcf())
         plt.show()
+    plt.close("all")
+
     return expvar_diff, U_diff, D_diff, V_diff
 
 
@@ -203,6 +209,7 @@ def PCA_data_visualize(latents_reservoir, U_diff, D_diff, V_diff, savedir, topcu
     plt.xlabel("Time step")
     saveallforms(savedir, f"{prefix}_PCA_projcurve_norm1")
     plt.show()
+    plt.close("all")
     PC_imgs = V_diff[:, :topImg_num].T
     PC_imgs = PC_imgs.reshape(topImg_num, *latents_reservoir.shape[-3:])
     PC_imgs_norm = (PC_imgs) / PC_imgs.std(dim=(1, 2, 3), keepdim=True) * 0.2 + 0.5
@@ -240,6 +247,7 @@ def ldm_PCA_data_visualize(latents_reservoir, pipe, U_diff, D_diff, V_diff, save
     plt.xlabel("Time step")
     saveallforms(savedir, f"{prefix}_PCA_projcurve_norm1")
     plt.show()
+    plt.close("all")
     # denorm_var(latent_diff[None, :], mean_fin, std_fin)
     PC_imgs = latentvecs_to_image(100 * V_diff[:, 0:topImg_num].T, pipe)
     save_imgrid(PC_imgs, join(savedir, f"{prefix}_topPC_imgs_vae_decode.png"), nrow=4,)
