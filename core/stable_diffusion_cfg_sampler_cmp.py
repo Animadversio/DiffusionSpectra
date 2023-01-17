@@ -7,7 +7,7 @@ import torch
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-from diffusers import pipelines, StableDiffusionPipeline
+from diffusers import pipelines, StableDiffusionPipeline, PNDMScheduler, DDIMScheduler
 from core.utils.plot_utils import show_imgrid, save_imgrid, saveallforms, to_imgrid
 
 from core.diffusion_geometry_lib import proj2subspace, proj2orthospace, subspace_variance, \
@@ -228,11 +228,12 @@ matplotlib.use('Agg')
 #%%
 import platform
 if platform.system() == "Windows":
-    saveroot = r"F:\insilico_exps\Diffusion_traj\StableDiffusion"
+    saveroot = r"F:\insilico_exps\Diffusion_traj\StableDiffusion_scheduler"
 elif platform.system() == "Linux":
-    saveroot = r"/home/binxuwang/insilico_exp/Diffusion_traj/StableDiffusion"
+    saveroot = r"/home/binxuwang/insilico_exp/Diffusion_traj/StableDiffusion_scheduler"
 else:
     raise RuntimeError("Unknown system")
+
 
 prompt_dir_pair = [
     ("a portrait of an aristocrat", "portrait_aristocrat"),
@@ -245,71 +246,87 @@ prompt_dir_pair = [
 ]
 
 #%%
+from diffusers import LMSDiscreteScheduler, DDIMScheduler, PNDMScheduler, \
+    EulerDiscreteScheduler, DPMSolverMultistepScheduler
+
+# guidance_scale = 1.0
 tsteps = 51
-for prompt, dirname in prompt_dir_pair:
-    for seed in range(100, 125):
-        # prompt = "a portrait of an aristocrat"
-        image, latents_traj, residue_traj, noise_uncond_traj, noise_text_traj = SD_sampler(pipe, prompt,
-                   num_inference_steps=tsteps, generator=torch.cuda.manual_seed(seed))
-        #%%
-        savedir = join(saveroot, f"{dirname}-seed{seed}")
-        os.makedirs(savedir, exist_ok=True)
-        image[0].save(join(savedir, "sample.png"))
-        torch.save({"latents_traj": latents_traj,
-                    "residue_traj" : residue_traj,
-                    "noise_uncond_traj" : noise_uncond_traj,
-                    "noise_text_traj" : noise_text_traj,
-                    }, join(savedir, "latents_noise_trajs.pt"))
-        json.dump({"prompt": prompt, "tsteps": tsteps, "seed": seed}, open(join(savedir, "prompt.json"), "w"))
+for prompt, dirname in prompt_dir_pair[:2]:
+    for seed in range(100, 105):
+        for guidance_scale in [1.0, 7.5]:
+            is_cf_guidance = guidance_scale > 1.0
+            for nameCls, SamplerCls in [("LMSDiscrete", LMSDiscreteScheduler,),
+                                        ("EulerDiscrete", EulerDiscreteScheduler,),
+                                        ("DDIM", DDIMScheduler,),
+                                        ("DPMSolverMultistep", DPMSolverMultistepScheduler,),
+                                        ("PNDM", PNDMScheduler,), ]:
+                pipe.scheduler = SamplerCls.from_config(pipe.scheduler.config)
+                if is_cf_guidance:
+                    image, latents_traj, residue_traj, noise_uncond_traj, noise_text_traj = SD_sampler(pipe, prompt,
+                           num_inference_steps=tsteps, generator=torch.cuda.manual_seed(seed), guidance_scale=guidance_scale)
+                else:
+                    image, latents_traj, residue_traj = SD_sampler(pipe, prompt,
+                           num_inference_steps=tsteps, generator=torch.cuda.manual_seed(seed), guidance_scale=guidance_scale)
+                #%%
+                savedir = join(saveroot, nameCls, f"{dirname}-seed{seed}_cfg{guidance_scale:.1f}")
+                os.makedirs(savedir, exist_ok=True)
+                image[0].save(join(savedir, "sample.png"))
+                torch.save({"latents_traj": latents_traj,
+                            "residue_traj" : residue_traj,
+                            }, join(savedir, "latents_noise_trajs.pt"))
+                json.dump({"prompt": prompt, "tsteps": tsteps, "seed": seed}, open(join(savedir, "prompt.json"), "w"))
 
-        #%%
-        t_traj = pipe.scheduler.timesteps.cpu()
-        alphacum_traj = pipe.scheduler.alphas_cumprod[t_traj]
-        pred_z0 = (latents_traj[:-1] -
-                   residue_traj * (1 - alphacum_traj).sqrt().view(-1, 1, 1, 1)) / \
-                  alphacum_traj.sqrt().view(-1, 1, 1, 1)
-        img_traj = latents_to_image(pred_z0[:, 0].half().to('cuda'), pipe, batch_size=11)
-        save_imgrid(img_traj, join(savedir, "proj_z0_vae_decode.png"), nrow=10, )
-        #%%
-        mean_fin = latents_traj[-1].mean()
-        std_fin = latents_traj[-1].std()
-        for lag in [1,2,3,4,5,10]:
-            print(f"lag {lag}")
-            latent_diff = latents_traj[lag:] - latents_traj[:-lag]
-            latent_renorm = denorm_sample_renorm(latent_diff[:, 0], mean_fin, std_fin)
-            latdif_traj = latents_to_image(latent_renorm[:], pipe)
-            save_imgrid(latdif_traj, join(savedir, f"latent_diff_lag{lag}_stdnorm_vae_decode.png"), nrow=10, )
+                #%%
+                t_traj = pipe.scheduler.timesteps.long().cpu()
+                alphacum_traj = pipe.scheduler.alphas_cumprod[t_traj]
+                pred_z0 = (latents_traj[:-1] -
+                           residue_traj * (1 - alphacum_traj).sqrt().view(-1, 1, 1, 1)) / \
+                          alphacum_traj.sqrt().view(-1, 1, 1, 1)
+                img_traj = latents_to_image(pred_z0[:, 0].half().to('cuda'), pipe, batch_size=11)
+                save_imgrid(img_traj, join(savedir, "proj_z0_vae_decode.png"), nrow=10, )
+                #%%
+                mean_fin = latents_traj[-1].mean()
+                std_fin = latents_traj[-1].std()
+                for lag in [1,2,3,4,5,10]:
+                    print(f"lag {lag}")
+                    latent_diff = latents_traj[lag:] - latents_traj[:-lag]
+                    latent_renorm = denorm_sample_renorm(latent_diff[:, 0], mean_fin, std_fin)
+                    latdif_traj = latents_to_image(latent_renorm[:], pipe)
+                    save_imgrid(latdif_traj, join(savedir, f"latent_diff_lag{lag}_stdnorm_vae_decode.png"), nrow=10, )
 
-        #%%
-        """ Correlogram of the latent state difference """
-        diff_cosine_mat_analysis(latents_traj, savedir, lags=(1,2,3,4,5,10))
-        """Geometry of the trajectory in 2d projection"""
-        trajectory_geometry_pipeline(latents_traj, savedir)
-        visualize_traj_2d_cycle(latents_traj, pipe, savedir)
-        """PCA analysis of the latent state / difference"""
-        expvar, U, D, V = latent_PCA_analysis(latents_traj, savedir,)
-        expvar_diff, U_diff, D_diff, V_diff = latent_diff_PCA_analysis(latents_traj, savedir,
-                                   proj_planes=[(i, j) for i in range(8) for j in range(i+1, 8)])
-        ldm_PCA_data_visualize(latents_traj, pipe, U, D, V, savedir, topcurv_num=8, topImg_num=8, prefix="latent_traj")
-        ldm_PCA_data_visualize(latents_traj, pipe, U_diff, D_diff, V_diff, savedir, topcurv_num=8, topImg_num=8, prefix="latent_diff")
-        torch.save({"expvar": expvar, "U": U, "D": D, "V": V}, join(savedir, "latent_PCA.pt"))
-        torch.save({"expvar_diff": expvar_diff, "U_diff": U_diff, "D_diff": D_diff, "V_diff": V_diff}, join(savedir, "latent_diff_PCA.pt"))
+                #%%
+                """ Correlogram of the latent state difference """
+                diff_cosine_mat_analysis(latents_traj, savedir, lags=(1,2,3,4,5,10))
+                """Geometry of the trajectory in 2d projection"""
+                trajectory_geometry_pipeline(latents_traj, savedir)
+                visualize_traj_2d_cycle(latents_traj, pipe, savedir)
+                """PCA analysis of the latent state / difference"""
+                expvar, U, D, V = latent_PCA_analysis(latents_traj, savedir,)
+                expvar_diff, U_diff, D_diff, V_diff = latent_diff_PCA_analysis(latents_traj, savedir,
+                                           proj_planes=[(i, j) for i in range(8) for j in range(i+1, 8)])
+                ldm_PCA_data_visualize(latents_traj, pipe, U, D, V, savedir, topcurv_num=8, topImg_num=8, prefix="latent_traj")
+                ldm_PCA_data_visualize(latents_traj, pipe, U_diff, D_diff, V_diff, savedir, topcurv_num=8, topImg_num=8, prefix="latent_diff")
+                torch.save({"expvar": expvar, "U": U, "D": D, "V": V}, join(savedir, "latent_PCA.pt"))
+                torch.save({"expvar_diff": expvar_diff, "U_diff": U_diff, "D_diff": D_diff, "V_diff": V_diff}, join(savedir, "latent_diff_PCA.pt"))
 
-        expvar_noise, U_noise, D_noise, V_noise = latent_PCA_analysis(residue_traj, savedir,
-                                   proj_planes=[(i, j) for i in range(5) for j in range(i+1, 5)], savestr="noise_pred_traj")
-        ldm_PCA_data_visualize(latents_traj, pipe, U, D, V, savedir, topcurv_num=8, topImg_num=8, prefix="noise_pred_traj")
-        torch.save({"expvar": expvar_noise, "U": U_noise, "D": D_noise, "V": V_noise}, join(savedir, "noise_pred_PCA.pt"))
+                expvar_noise, U_noise, D_noise, V_noise = latent_PCA_analysis(residue_traj, savedir,
+                                           proj_planes=[(i, j) for i in range(5) for j in range(i+1, 5)], savestr="noise_pred_traj")
+                ldm_PCA_data_visualize(latents_traj, pipe, U, D, V, savedir, topcurv_num=8, topImg_num=8, prefix="noise_pred_traj")
+                torch.save({"expvar": expvar_noise, "U": U_noise, "D": D_noise, "V": V_noise}, join(savedir, "noise_pred_PCA.pt"))
 
+                if is_cf_guidance:
+                    expvar_noise, U_noise, D_noise, V_noise = latent_PCA_analysis(noise_uncond_traj, savedir,
+                                proj_planes=[(i, j) for i in range(5) for j in range(i + 1, 5)], savestr="noise_uncond_traj")
+                    ldm_PCA_data_visualize(noise_uncond_traj, pipe, U, D, V, savedir, topcurv_num=8, topImg_num=8,
+                                           prefix="noise_uncond_traj")
+                    torch.save({"expvar": expvar_noise, "U": U_noise, "D": D_noise, "V": V_noise},
+                               join(savedir, "noise_uncond_PCA.pt"))
 
-        expvar_noise, U_noise, D_noise, V_noise = latent_PCA_analysis(noise_uncond_traj, savedir,
-                                   proj_planes=[(i, j) for i in range(5) for j in range(i+1, 5)], savestr="noise_uncond_traj")
-        ldm_PCA_data_visualize(noise_uncond_traj, pipe, U, D, V, savedir, topcurv_num=8, topImg_num=8, prefix="noise_uncond_traj")
-        torch.save({"expvar": expvar_noise, "U": U_noise, "D": D_noise, "V": V_noise}, join(savedir, "noise_uncond_PCA.pt"))
+                    expvar_noise, U_noise, D_noise, V_noise = latent_PCA_analysis(noise_text_traj, savedir,
+                               proj_planes=[(i, j) for i in range(5) for j in range(i + 1, 5)], savestr="noise_text_traj")
+                    ldm_PCA_data_visualize(noise_text_traj, pipe, U, D, V, savedir, topcurv_num=8, topImg_num=8,
+                                           prefix="noise_text_traj")
+                    torch.save({"expvar": expvar_noise, "U": U_noise, "D": D_noise, "V": V_noise},
+                               join(savedir, "noise_text_PCA.pt"))
+                plt.close("all")
 
-        expvar_noise, U_noise, D_noise, V_noise = latent_PCA_analysis(noise_text_traj, savedir,
-                                   proj_planes=[(i, j) for i in range(5) for j in range(i+1, 5)], savestr="noise_text_traj")
-        ldm_PCA_data_visualize(noise_text_traj, pipe, U, D, V, savedir, topcurv_num=8, topImg_num=8, prefix="noise_text_traj")
-        torch.save({"expvar": expvar_noise, "U": U_noise, "D": D_noise, "V": V_noise}, join(savedir, "noise_text_PCA.pt"))
-        plt.close("all")
-    #     break
-    # break

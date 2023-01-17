@@ -228,9 +228,9 @@ matplotlib.use('Agg')
 #%%
 import platform
 if platform.system() == "Windows":
-    saveroot = r"F:\insilico_exps\Diffusion_traj\StableDiffusion"
+    saveroot = r"F:\insilico_exps\Diffusion_traj\StableDiffusion_nocfg"
 elif platform.system() == "Linux":
-    saveroot = r"/home/binxuwang/insilico_exp/Diffusion_traj/StableDiffusion"
+    saveroot = r"/home/binxuwang/insilico_exp/Diffusion_traj/StableDiffusion_nocfg"
 else:
     raise RuntimeError("Unknown system")
 
@@ -245,20 +245,19 @@ prompt_dir_pair = [
 ]
 
 #%%
+guidance_scale = 1.0
 tsteps = 51
 for prompt, dirname in prompt_dir_pair:
     for seed in range(100, 125):
         # prompt = "a portrait of an aristocrat"
-        image, latents_traj, residue_traj, noise_uncond_traj, noise_text_traj = SD_sampler(pipe, prompt,
-                   num_inference_steps=tsteps, generator=torch.cuda.manual_seed(seed))
+        image, latents_traj, residue_traj = SD_sampler(pipe, prompt,
+                   num_inference_steps=tsteps, generator=torch.cuda.manual_seed(seed), guidance_scale=guidance_scale)
         #%%
         savedir = join(saveroot, f"{dirname}-seed{seed}")
         os.makedirs(savedir, exist_ok=True)
         image[0].save(join(savedir, "sample.png"))
         torch.save({"latents_traj": latents_traj,
                     "residue_traj" : residue_traj,
-                    "noise_uncond_traj" : noise_uncond_traj,
-                    "noise_text_traj" : noise_text_traj,
                     }, join(savedir, "latents_noise_trajs.pt"))
         json.dump({"prompt": prompt, "tsteps": tsteps, "seed": seed}, open(join(savedir, "prompt.json"), "w"))
 
@@ -301,15 +300,4 @@ for prompt, dirname in prompt_dir_pair:
         torch.save({"expvar": expvar_noise, "U": U_noise, "D": D_noise, "V": V_noise}, join(savedir, "noise_pred_PCA.pt"))
 
 
-        expvar_noise, U_noise, D_noise, V_noise = latent_PCA_analysis(noise_uncond_traj, savedir,
-                                   proj_planes=[(i, j) for i in range(5) for j in range(i+1, 5)], savestr="noise_uncond_traj")
-        ldm_PCA_data_visualize(noise_uncond_traj, pipe, U, D, V, savedir, topcurv_num=8, topImg_num=8, prefix="noise_uncond_traj")
-        torch.save({"expvar": expvar_noise, "U": U_noise, "D": D_noise, "V": V_noise}, join(savedir, "noise_uncond_PCA.pt"))
 
-        expvar_noise, U_noise, D_noise, V_noise = latent_PCA_analysis(noise_text_traj, savedir,
-                                   proj_planes=[(i, j) for i in range(5) for j in range(i+1, 5)], savestr="noise_text_traj")
-        ldm_PCA_data_visualize(noise_text_traj, pipe, U, D, V, savedir, topcurv_num=8, topImg_num=8, prefix="noise_text_traj")
-        torch.save({"expvar": expvar_noise, "U": U_noise, "D": D_noise, "V": V_noise}, join(savedir, "noise_text_PCA.pt"))
-        plt.close("all")
-    #     break
-    # break
