@@ -214,7 +214,14 @@ def SD_sampler(
 
 def denorm_sample_renorm(x, mu, std):
     return ((x - x.mean(dim=(1,2,3), keepdims=True)) / x.std(dim=(1,2,3), keepdims=True) * std + mu)
+#%%
 
+#%%
+import matplotlib
+matplotlib.use('Agg')
+# use the interactive backend
+
+# matplotlib.use('module://backend_interagg')
 #%%
 import platform
 if platform.system() == "Windows":
@@ -297,8 +304,9 @@ for prompt, dirname in prompt_dir_pair:
         torch.save({"expvar": expvar_noise, "U": U_noise, "D": D_noise, "V": V_noise}, join(savedir, "noise_uncond_PCA.pt"))
 
         expvar_noise, U_noise, D_noise, V_noise = latent_PCA_analysis(noise_text_traj, savedir,
-                                   proj_planes=[(i, j) for i in range(5) for j in range(i+1, 5)], savestr="noise_uncond_traj")
-        ldm_PCA_data_visualize(noise_text_traj, pipe, U, D, V, savedir, topcurv_num=8, topImg_num=8, prefix="noise_uncond_traj")
-        torch.save({"expvar": expvar_noise, "U": U_noise, "D": D_noise, "V": V_noise}, join(savedir, "noise_uncond_PCA.pt"))
-        break
-    break
+                                   proj_planes=[(i, j) for i in range(5) for j in range(i+1, 5)], savestr="noise_text_traj")
+        ldm_PCA_data_visualize(noise_text_traj, pipe, U, D, V, savedir, topcurv_num=8, topImg_num=8, prefix="noise_text_traj")
+        torch.save({"expvar": expvar_noise, "U": U_noise, "D": D_noise, "V": V_noise}, join(savedir, "noise_text_PCA.pt"))
+        plt.close("all")
+    #     break
+    # break
