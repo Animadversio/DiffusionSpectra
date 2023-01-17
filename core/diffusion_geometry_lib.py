@@ -112,9 +112,8 @@ def trajectory_geometry_pipeline(latents_reservoir, savedir):
 
 
 
-
 def latent_PCA_analysis(latents_reservoir, savedir,
-                        proj_planes=[(0, 1)]):
+                        proj_planes=[(0, 1)], savestr="latent_traj"):
     latents_mat = latents_reservoir.flatten(1).double()
     latents_mat = latents_mat - latents_mat.mean(dim=0)
     U, D, V = torch.svd(latents_mat, )
@@ -124,8 +123,8 @@ def latent_PCA_analysis(latents_reservoir, savedir,
     plt.plot(expvar_vec)
     plt.xlabel("PC")
     plt.ylabel("explained variance")
-    plt.title("Explained variance of the latent trajectory")
-    saveallforms(savedir, "latent_traj_PCA_expvar", plt.gcf())
+    plt.title(f"Explained variance of the {savestr.replace('_',' ')}")
+    saveallforms(savedir, f"{savestr}_PCA_expvar", plt.gcf())
     plt.show()
 
     for PCi, PCj in proj_planes:
@@ -136,16 +135,16 @@ def latent_PCA_analysis(latents_reservoir, savedir,
         plt.xlabel(f"PC{PCi + 1}")
         plt.ylabel(f"PC{PCj + 1}")
         plt.axis("equal")
-        plt.title(f"Latent state projection onto the 2 PCs (PC{PCi + 1} vs PC{PCj + 1})"
+        plt.title(f"{savestr.replace('_',' ')} projection onto the 2 PCs (PC{PCi + 1} vs PC{PCj + 1})"
                   f"\n{projvar:.2%} of the variance is explained")
-        saveallforms(savedir, f"latent_traj_PC{PCi + 1}_PC{PCj + 1}_proj", plt.gcf())
+        saveallforms(savedir, f"{savestr}_PC{PCi + 1}_PC{PCj + 1}_proj", plt.gcf())
         plt.show()
     plt.close("all")
 
     return expvar_vec, U, D, V
 
 
-def latent_diff_PCA_analysis(latents_reservoir, savedir,
+def latent_diff_PCA_analysis(latents_reservoir, savedir, savestr="latent_diff",
              proj_planes=[(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]):
     """PCA of the latent steps taken """
     latents_mat = latents_reservoir.flatten(1).double()
@@ -157,8 +156,8 @@ def latent_diff_PCA_analysis(latents_reservoir, savedir,
     plt.plot(expvar_diff)
     plt.xlabel("PC")
     plt.ylabel("explained variance")
-    plt.title("Explained variance of the latent difference")
-    saveallforms(savedir, "latent_diff_PCA_expvar", plt.gcf())
+    plt.title(f"Explained variance of the {savestr.replace('_',' ')}")
+    saveallforms(savedir, f"{savestr}_PCA_expvar", plt.gcf())
     plt.show()
     """Project the latent steps to different PC planes."""
     for PCi, PCj in proj_planes:
@@ -169,9 +168,9 @@ def latent_diff_PCA_analysis(latents_reservoir, savedir,
         plt.xlabel(f"PC{PCi + 1}")
         plt.ylabel(f"PC{PCj + 1}")
         plt.axis("equal")
-        plt.title(f"Latent Step projection onto the 2 PCs (PC{PCi + 1} vs PC{PCj + 1})"
+        plt.title(f"{savestr.replace('_',' ')} projection onto the 2 PCs (PC{PCi + 1} vs PC{PCj + 1})"
                   f"\n{projvar:.2%} of the variance is explained")
-        saveallforms(savedir, f"latent_diff_PC{PCi + 1}_PC{PCj + 1}_proj", plt.gcf())
+        saveallforms(savedir, f"{savestr}_PC{PCi + 1}_PC{PCj + 1}_proj", plt.gcf())
         plt.show()
     plt.close("all")
 

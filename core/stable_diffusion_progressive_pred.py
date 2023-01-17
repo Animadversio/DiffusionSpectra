@@ -34,20 +34,20 @@ def dummy_checker(images, **kwargs): return images, False
 
 pipe.safety_checker = dummy_checker
 #%%
-prompt = "a portrait of an aristocrat"
-#  in Edgar Degas style
-tsteps = 51
-# for seed in range(100, 125):
-latents_reservoir = []
-@torch.no_grad()
-def save_latents(i, t, latents):
-    latents_reservoir.append(latents.detach().cpu())
-
-seed = 105
-out = pipe(prompt, callback=save_latents,
-           num_inference_steps=tsteps, generator=torch.cuda.manual_seed(seed))
-out.images[0].show()
-latents_reservoir = torch.cat(latents_reservoir, dim=0)
+# prompt = "a portrait of an aristocrat"
+# #  in Edgar Degas style
+# tsteps = 51
+# # for seed in range(100, 125):
+# latents_reservoir = []
+# @torch.no_grad()
+# def save_latents(i, t, latents):
+#     latents_reservoir.append(latents.detach().cpu())
+#
+# seed = 105
+# out = pipe(prompt, callback=save_latents,
+#            num_inference_steps=tsteps, generator=torch.cuda.manual_seed(seed))
+# out.images[0].show()
+# latents_reservoir = torch.cat(latents_reservoir, dim=0)
 #%%
 from typing import Callable, List, Optional, Union
 @torch.no_grad()
@@ -184,6 +184,8 @@ def SD_sampler(
 
             # compute the previous noisy sample x_t -> x_t-1
             latents = pipe.scheduler.step(noise_pred, t, latents, **extra_step_kwargs).prev_sample
+
+            # the added code, to save the trajectory of the latents and the noise predictions
             latents_trajectory.append(latents.detach().cpu())
             noise_pred_trajectory.append(noise_pred.detach().cpu())
             noise_pred_uncond_trajectory.append(noise_pred_uncond.detach().cpu())
@@ -209,28 +211,94 @@ def SD_sampler(
     noise_pred_text_trajectory = torch.stack(noise_pred_text_trajectory)
     return image, latents_trajectory, noise_pred_trajectory, noise_pred_uncond_trajectory, noise_pred_text_trajectory
 
-#%%
-tsteps = 51
-seed = 103
-image, latents_traj, residue_traj, noise_uncond, noise_pred = SD_sampler(pipe, prompt,
-           num_inference_steps=tsteps, generator=torch.cuda.manual_seed(seed))
-#%%
-t_traj = pipe.scheduler.timesteps.cpu()
-alphacum_traj = pipe.scheduler.alphas_cumprod[t_traj]
-pred_z0 = (latents_traj[:-1] - residue_traj * (1 - alphacum_traj).sqrt().view(-1, 1, 1, 1)) / alphacum_traj.sqrt().view(-1, 1, 1, 1)
-#%%
-img_traj = latents_to_image(pred_z0[:, 0].half().to('cuda'), pipe, batch_size=8)
-#%%
-show_imgrid(img_traj, nrow=10, figsize=(10, 10))
-#%%
+
 def denorm_sample_renorm(x, mu, std):
     return ((x - x.mean(dim=(1,2,3), keepdims=True)) / x.std(dim=(1,2,3), keepdims=True) * std + mu)
 
-mean_fin = latents_traj[-1].mean()
-std_fin = latents_traj[-1].std()
-latent_diff = latents_traj[2:] - latents_traj[:-2]
-latent_renorm = denorm_sample_renorm(latent_diff[:, 0], mean_fin, std_fin)
-latdif_traj = latents_to_image(latent_renorm[:], pipe)
-show_imgrid(latdif_traj, nrow=10, figsize=(10, 10))
 #%%
-image[0].show()
+import platform
+if platform.system() == "Windows":
+    saveroot = r"F:\insilico_exps\Diffusion_traj\StableDiffusion"
+elif platform.system() == "Linux":
+    saveroot = r"/home/binxuwang/insilico_exp/Diffusion_traj/StableDiffusion"
+else:
+    raise RuntimeError("Unknown system")
+
+prompt_dir_pair = [
+    ("a portrait of an aristocrat", "portrait_aristocrat"),
+    ("a portrait of an light bulb", "portrait_lightbulb"),
+    ("a large box containing an apple and a toy teddy bear", "box_apple_bear"),
+    ("a photo of a cat sitting with a dog on a cozy couch", "cat_dog_couch"),
+    ("a CG art of a brain composed of eletronic wires and circuits", "brain_wire_circuits"),
+    ("a handsome cat dancing Tango with a female dancer in Monet style", "cat_tango_dancer"),
+    ("a bug crawling on a textbook under a bright light, photo", "bug_book_photo"),
+]
+
+#%%
+tsteps = 51
+for prompt, dirname in prompt_dir_pair:
+    for seed in range(100, 125):
+        # prompt = "a portrait of an aristocrat"
+        image, latents_traj, residue_traj, noise_uncond_traj, noise_text_traj = SD_sampler(pipe, prompt,
+                   num_inference_steps=tsteps, generator=torch.cuda.manual_seed(seed))
+        #%%
+        savedir = join(saveroot, f"{dirname}-seed{seed}")
+        os.makedirs(savedir, exist_ok=True)
+        image[0].save(join(savedir, "sample.png"))
+        torch.save({"latents_traj": latents_traj,
+                    "residue_traj" : residue_traj,
+                    "noise_uncond_traj" : noise_uncond_traj,
+                    "noise_text_traj" : noise_text_traj,
+                    }, join(savedir, "latents_noise_trajs.pt"))
+        json.dump({"prompt": prompt, "tsteps": tsteps, "seed": seed}, open(join(savedir, "prompt.json"), "w"))
+
+        #%%
+        t_traj = pipe.scheduler.timesteps.cpu()
+        alphacum_traj = pipe.scheduler.alphas_cumprod[t_traj]
+        pred_z0 = (latents_traj[:-1] -
+                   residue_traj * (1 - alphacum_traj).sqrt().view(-1, 1, 1, 1)) / \
+                  alphacum_traj.sqrt().view(-1, 1, 1, 1)
+        img_traj = latents_to_image(pred_z0[:, 0].half().to('cuda'), pipe, batch_size=11)
+        save_imgrid(img_traj, join(savedir, "proj_z0_vae_decode.png"), nrow=10, )
+        #%%
+        mean_fin = latents_traj[-1].mean()
+        std_fin = latents_traj[-1].std()
+        for lag in [1,2,3,4,5,10]:
+            print(f"lag {lag}")
+            latent_diff = latents_traj[lag:] - latents_traj[:-lag]
+            latent_renorm = denorm_sample_renorm(latent_diff[:, 0], mean_fin, std_fin)
+            latdif_traj = latents_to_image(latent_renorm[:], pipe)
+            save_imgrid(latdif_traj, join(savedir, f"latent_diff_lag{lag}_stdnorm_vae_decode.png"), nrow=10, )
+
+        #%%
+        """ Correlogram of the latent state difference """
+        diff_cosine_mat_analysis(latents_traj, savedir, lags=(1,2,3,4,5,10))
+        """Geometry of the trajectory in 2d projection"""
+        trajectory_geometry_pipeline(latents_traj, savedir)
+        visualize_traj_2d_cycle(latents_traj, pipe, savedir)
+        """PCA analysis of the latent state / difference"""
+        expvar, U, D, V = latent_PCA_analysis(latents_traj, savedir,)
+        expvar_diff, U_diff, D_diff, V_diff = latent_diff_PCA_analysis(latents_traj, savedir,
+                                   proj_planes=[(i, j) for i in range(8) for j in range(i+1, 8)])
+        ldm_PCA_data_visualize(latents_traj, pipe, U, D, V, savedir, topcurv_num=8, topImg_num=8, prefix="latent_traj")
+        ldm_PCA_data_visualize(latents_traj, pipe, U_diff, D_diff, V_diff, savedir, topcurv_num=8, topImg_num=8, prefix="latent_diff")
+        torch.save({"expvar": expvar, "U": U, "D": D, "V": V}, join(savedir, "latent_PCA.pt"))
+        torch.save({"expvar_diff": expvar_diff, "U_diff": U_diff, "D_diff": D_diff, "V_diff": V_diff}, join(savedir, "latent_diff_PCA.pt"))
+
+        expvar_noise, U_noise, D_noise, V_noise = latent_PCA_analysis(residue_traj, savedir,
+                                   proj_planes=[(i, j) for i in range(5) for j in range(i+1, 5)], savestr="noise_pred_traj")
+        ldm_PCA_data_visualize(latents_traj, pipe, U, D, V, savedir, topcurv_num=8, topImg_num=8, prefix="noise_pred_traj")
+        torch.save({"expvar": expvar_noise, "U": U_noise, "D": D_noise, "V": V_noise}, join(savedir, "noise_pred_PCA.pt"))
+
+
+        expvar_noise, U_noise, D_noise, V_noise = latent_PCA_analysis(noise_uncond_traj, savedir,
+                                   proj_planes=[(i, j) for i in range(5) for j in range(i+1, 5)], savestr="noise_uncond_traj")
+        ldm_PCA_data_visualize(noise_uncond_traj, pipe, U, D, V, savedir, topcurv_num=8, topImg_num=8, prefix="noise_uncond_traj")
+        torch.save({"expvar": expvar_noise, "U": U_noise, "D": D_noise, "V": V_noise}, join(savedir, "noise_uncond_PCA.pt"))
+
+        expvar_noise, U_noise, D_noise, V_noise = latent_PCA_analysis(noise_text_traj, savedir,
+                                   proj_planes=[(i, j) for i in range(5) for j in range(i+1, 5)], savestr="noise_uncond_traj")
+        ldm_PCA_data_visualize(noise_text_traj, pipe, U, D, V, savedir, topcurv_num=8, topImg_num=8, prefix="noise_uncond_traj")
+        torch.save({"expvar": expvar_noise, "U": U_noise, "D": D_noise, "V": V_noise}, join(savedir, "noise_uncond_PCA.pt"))
+        break
+    break
