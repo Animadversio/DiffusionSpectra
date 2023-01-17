@@ -53,8 +53,13 @@ elif platform.system() == "Linux":
 # prompt = "a box containing an apple and a toy teddy bear"
 # prompt = "a photo of a photo of a photo of a photo of a cute dog"
 prompt = "a large box containing an apple and a toy teddy bear"
+prompt = "a photo of a cat sitting with a dog on a cozy couch"
+prompt = "a CG art of a brain composed of eletronic wires and circuits"
+prompt = "a handsome cat dancing Tango with a female dancer in Monet style"
+prompt = "a bug crawling on a textbook under a bright light, photo"
+#  in Edgar Degas style
 tsteps = 51
-for seed in range(102, 150):
+for seed in range(100, 125):
     latents_reservoir = []
     @torch.no_grad()
     def save_latents(i, t, latents):
@@ -67,6 +72,10 @@ for seed in range(102, 150):
     latents_reservoir = torch.cat(latents_reservoir, dim=0)
     # savedir = rf"F:\insilico_exps\Diffusion_traj\StableDiffusion\mice_dress_heels-seed{seed}"
     savedir = join(saveroot, f"box_apple_bear-seed{seed}")
+    savedir = join(saveroot, f"cat_dog_couch-seed{seed}")
+    savedir = join(saveroot, f"brain_wire_circuits-seed{seed}")
+    savedir = join(saveroot, f"cat_tango_dancer-seed{seed}")
+    savedir = join(saveroot, f"bug_book_photo-seed{seed}")
     os.makedirs(savedir, exist_ok=True)
 
     torch.save(latents_reservoir, join(savedir, "latents_reservoir.pt"))
