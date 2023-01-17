@@ -26,7 +26,9 @@ from core.diffusion_traj_analysis_lib import compute_save_diff_imgs_diff, plot_d
 # model_id = "google/ddpm-church-256"
 # model_id = "google/ddpm-ema-church-256"
 # model_id = "google/ddpm-ema-celebahq-256"
-model_id = "google/ddpm-celebahq-256" # most popular
+# model_id = "google/ddpm-cifar10-32"
+model_id = "dimpo/ddpm-mnist"  # most popular
+# model_id = "google/ddpm-celebahq-256" # most popular
 model_id_short = model_id.split("/")[-1]
 saveroot = rf"F:\insilico_exps\Diffusion_traj\{model_id_short}"
 # load model and scheduler
