@@ -16,8 +16,7 @@ def denorm_std(x):
 
 
 def denorm_sample_std(x):
-    raise ValueError
-    return ((x - x.mean(dim=0, keepdims=True)) / x.std(dim=0, keepdims=True) * 0.4 + 1) / 2
+    return ((x - x.mean(dim=(1,2,3), keepdims=True)) / x.std(dim=(1,2,3), keepdims=True) * 0.4 + 1) / 2
 
 
 def denorm_var(x, mu, std):
@@ -25,20 +24,21 @@ def denorm_var(x, mu, std):
 
 
 """turning latents to images for LDM"""
-def latents_to_image(latents, pipe):
+def latents_to_image(latents, pipe, batch_size=8):
     latents = 1 / 0.18215 * latents
-    image = pipe.vae.decode(latents.to(pipe.vae.device).to(pipe.vae.dtype)).sample
-    image = (image / 2 + 0.5).clamp(0, 1)
-    return image.cpu()
+    images = []
+    for i in range(0, latents.shape[0], batch_size):
+        image = pipe.vae.decode(latents[i:i+batch_size].to(pipe.vae.device).to(pipe.vae.dtype)).sample
+        image = image.float().cpu()
+        image = (image / 2 + 0.5).clamp(0, 1)
+        images.append(image)
+    return torch.cat(images, dim=0)
 
 
-def latentvecs_to_image(latents, pipe, latent_shape=(4, 64, 64)):
+def latentvecs_to_image(latents, pipe, latent_shape=(4, 64, 64), batch_size=8):
     if len(latents.shape) == 2:
         latents = latents.reshape(latents.shape[0], *latent_shape)
-    latents = 1 / 0.18215 * latents
-    image = pipe.vae.decode(latents.to(pipe.vae.device).to(pipe.vae.dtype)).sample
-    image = (image / 2 + 0.5).clamp(0, 1)
-    return image.cpu()
+    return latents_to_image(latents, pipe, batch_size=batch_size)
 
 
 def compute_save_diff_imgs_diff(savedir, step_list, latents_reservoir, triu=True):
