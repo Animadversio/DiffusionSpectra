@@ -302,29 +302,30 @@ for prompt, dirname in prompt_dir_pair[:2]:
                 visualize_traj_2d_cycle(latents_traj, pipe, savedir)
                 """PCA analysis of the latent state / difference"""
                 expvar, U, D, V = latent_PCA_analysis(latents_traj, savedir,)
+                ldm_PCA_data_visualize(latents_traj, pipe, U, D, V, savedir, topcurv_num=8, topImg_num=16, prefix="latent_traj")
+                torch.save({"expvar": expvar, "U": U, "D": D, "V": V}, join(savedir, "latent_PCA.pt"))
+
                 expvar_diff, U_diff, D_diff, V_diff = latent_diff_PCA_analysis(latents_traj, savedir,
                                            proj_planes=[(i, j) for i in range(8) for j in range(i+1, 8)])
-                ldm_PCA_data_visualize(latents_traj, pipe, U, D, V, savedir, topcurv_num=8, topImg_num=8, prefix="latent_traj")
-                ldm_PCA_data_visualize(latents_traj, pipe, U_diff, D_diff, V_diff, savedir, topcurv_num=8, topImg_num=8, prefix="latent_diff")
-                torch.save({"expvar": expvar, "U": U, "D": D, "V": V}, join(savedir, "latent_PCA.pt"))
+                ldm_PCA_data_visualize(latents_traj, pipe, U_diff, D_diff, V_diff, savedir, topcurv_num=8, topImg_num=16, prefix="latent_diff")
                 torch.save({"expvar_diff": expvar_diff, "U_diff": U_diff, "D_diff": D_diff, "V_diff": V_diff}, join(savedir, "latent_diff_PCA.pt"))
 
                 expvar_noise, U_noise, D_noise, V_noise = latent_PCA_analysis(residue_traj, savedir,
                                            proj_planes=[(i, j) for i in range(5) for j in range(i+1, 5)], savestr="noise_pred_traj")
-                ldm_PCA_data_visualize(latents_traj, pipe, U, D, V, savedir, topcurv_num=8, topImg_num=8, prefix="noise_pred_traj")
+                ldm_PCA_data_visualize(latents_traj, pipe, U_noise, D_noise, V_noise, savedir, topcurv_num=8, topImg_num=16, prefix="noise_pred_traj")
                 torch.save({"expvar": expvar_noise, "U": U_noise, "D": D_noise, "V": V_noise}, join(savedir, "noise_pred_PCA.pt"))
 
                 if is_cf_guidance:
                     expvar_noise, U_noise, D_noise, V_noise = latent_PCA_analysis(noise_uncond_traj, savedir,
                                 proj_planes=[(i, j) for i in range(5) for j in range(i + 1, 5)], savestr="noise_uncond_traj")
-                    ldm_PCA_data_visualize(noise_uncond_traj, pipe, U, D, V, savedir, topcurv_num=8, topImg_num=8,
+                    ldm_PCA_data_visualize(noise_uncond_traj, pipe, U_noise, D_noise, V_noise, savedir, topcurv_num=8, topImg_num=16,
                                            prefix="noise_uncond_traj")
                     torch.save({"expvar": expvar_noise, "U": U_noise, "D": D_noise, "V": V_noise},
                                join(savedir, "noise_uncond_PCA.pt"))
 
                     expvar_noise, U_noise, D_noise, V_noise = latent_PCA_analysis(noise_text_traj, savedir,
                                proj_planes=[(i, j) for i in range(5) for j in range(i + 1, 5)], savestr="noise_text_traj")
-                    ldm_PCA_data_visualize(noise_text_traj, pipe, U, D, V, savedir, topcurv_num=8, topImg_num=8,
+                    ldm_PCA_data_visualize(noise_text_traj, pipe, U_noise, D_noise, V_noise, savedir, topcurv_num=8, topImg_num=16,
                                            prefix="noise_text_traj")
                     torch.save({"expvar": expvar_noise, "U": U_noise, "D": D_noise, "V": V_noise},
                                join(savedir, "noise_text_PCA.pt"))
