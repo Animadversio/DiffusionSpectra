@@ -252,7 +252,7 @@ from diffusers import LMSDiscreteScheduler, DDIMScheduler, PNDMScheduler, \
 # guidance_scale = 1.0
 tsteps = 51
 for prompt, dirname in prompt_dir_pair[:2]:
-    for seed in range(100, 105):
+    for seed in range(105, 115):
         for guidance_scale in [1.0, 7.5]:
             is_cf_guidance = guidance_scale > 1.0
             for nameCls, SamplerCls in [("LMSDiscrete", LMSDiscreteScheduler,),
