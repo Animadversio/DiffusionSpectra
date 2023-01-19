@@ -24,10 +24,10 @@ from core.diffusion_traj_analysis_lib import compute_save_diff_imgs_diff, plot_d
 # model_id = "google/ddpm-ema-cat-256"
 # model_id = "google/ddpm-bedroom-256"
 # model_id = "google/ddpm-ema-bedroom-256"
-# model_id = "google/ddpm-church-256"
+model_id = "google/ddpm-church-256"
 # model_id = "google/ddpm-ema-church-256"
 # model_id = "google/ddpm-ema-celebahq-256"
-model_id = "google/ddpm-celebahq-256" # most popular
+# model_id = "google/ddpm-celebahq-256" # most popular
 # model_id = "google/ddpm-cifar10-32"
 # model_id = "dimpo/ddpm-mnist"  # most popular
 model_id_short = model_id.split("/")[-1]
@@ -89,7 +89,7 @@ for nameCls, SamplerCls in [("LMSDiscrete", LMSDiscreteScheduler,),
                             ("PNDM", PNDMScheduler,), ]:
     pipe.scheduler = SamplerCls.from_config(pipe.scheduler.config)
     pipe.scheduler.set_timesteps(tsteps)
-    for seed in range(143, 150):
+    for seed in range(125, 150):
         sample, sample_traj, residual_traj, t_traj = sampling(pipe.unet, pipe.scheduler, batch_size=1,
                                                               generator=torch.cuda.manual_seed(seed))
         #%%
@@ -109,7 +109,7 @@ for nameCls, SamplerCls in [("LMSDiscrete", LMSDiscreteScheduler,),
                   alphacum_traj.sqrt().view(-1, 1, 1, 1)
         pred_x0_imgs = (pred_x0 + 1) / 2
 
-        save_imgrid(pred_x0_imgs, join(savedir, "proj_z0_vae_decode.png"), nrow=10, )
+        save_imgrid(pred_x0_imgs, join(savedir, "proj_z0_vae_decode.jpg"), nrow=10, )
         # %%
         mean_fin = sample_traj[-1].mean()
         std_fin = sample_traj[-1].std()
@@ -118,21 +118,24 @@ for nameCls, SamplerCls in [("LMSDiscrete", LMSDiscreteScheduler,),
             sample_diff = sample_traj[lag:] - sample_traj[:-lag]
             sample_diff_renorm = denorm_sample_renorm(sample_diff, mean_fin, std_fin)
             sampdif_img_traj = (sample_diff_renorm + 1) / 2
-            save_imgrid(sampdif_img_traj, join(savedir, f"sample_diff_lag{lag}_stdnorm_vae_decode.png"), nrow=10, )
+            save_imgrid(sampdif_img_traj, join(savedir, f"sample_diff_lag{lag}_stdnorm_vae_decode.jpg"), nrow=10, )
 
         # %%
         trajectory_geometry_pipeline(sample_traj, savedir, )
         diff_cosine_mat_analysis(sample_traj, savedir, )
-        expvar_vec, U, D, V = latent_PCA_analysis(sample_traj, savedir, )
-        expvar_diff, U_diff, D_diff, V_diff = latent_diff_PCA_analysis(sample_traj, savedir, )
+        expvar_vec, U, D, V = latent_PCA_analysis(sample_traj, savedir, savestr="latent_traj")
+        expvar_diff, U_diff, D_diff, V_diff = latent_diff_PCA_analysis(sample_traj, savedir,
+                                                                       savestr="latent_diff")
         PCA_data_visualize(sample_traj, U, D, V, savedir, topcurv_num=8, topImg_num=16,
                            prefix="latent_traj")
         PCA_data_visualize(sample_traj, U_diff, D_diff, V_diff, savedir, topcurv_num=8, topImg_num=16,
                            prefix="latent_diff")
-        expvar_noise, U_noise, D_noise, V_noise = latent_diff_PCA_analysis(residual_traj, savedir, )
+        expvar_noise, U_noise, D_noise, V_noise = latent_PCA_analysis(residual_traj, savedir,
+                                                                    savestr="noise_pred",)
         PCA_data_visualize(residual_traj, U_noise, D_noise, V_noise, savedir, topcurv_num=8, topImg_num=16,
                            prefix="noise_pred")
-        torch.save({"expvar": expvar_vec, "U": U, "D": D, "V": V}, join(savedir, "latent_PCA.pt"))
+        torch.save({"expvar": expvar_vec, "U": U, "D": D, "V": V},
+                   join(savedir, "latent_PCA.pt"))
         torch.save({"expvar_diff": expvar_diff, "U_diff": U_diff, "D_diff": D_diff, "V_diff": V_diff},
                    join(savedir, "latent_diff_PCA.pt"))
         torch.save({"expvar": expvar_noise, "U": U_noise, "D": D_noise, "V": V_noise},

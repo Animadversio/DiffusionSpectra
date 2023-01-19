@@ -212,7 +212,7 @@ def PCA_data_visualize(latents_reservoir, U_diff, D_diff, V_diff, savedir, topcu
     PC_imgs = V_diff[:, :topImg_num].T
     PC_imgs = PC_imgs.reshape(topImg_num, *latents_reservoir.shape[-3:])
     PC_imgs_norm = (PC_imgs) / PC_imgs.std(dim=(1, 2, 3), keepdim=True) * 0.2 + 0.5
-    save_imgrid(PC_imgs_norm, join(savedir, f"{prefix}_topPC_imgs_vis.png"), nrow=4, )
+    save_imgrid(PC_imgs_norm, join(savedir, f"{prefix}_topPC_imgs_vis.jpg"), nrow=4, )
 
 
 def ldm_PCA_data_visualize(latents_reservoir, pipe, U_diff, D_diff, V_diff, savedir, topcurv_num=8, topImg_num=16, prefix="latent_diff"):
@@ -249,7 +249,7 @@ def ldm_PCA_data_visualize(latents_reservoir, pipe, U_diff, D_diff, V_diff, save
     plt.close("all")
     # denorm_var(latent_diff[None, :], mean_fin, std_fin)
     PC_imgs = latentvecs_to_image(100 * V_diff[:, 0:topImg_num].T, pipe)
-    save_imgrid(PC_imgs, join(savedir, f"{prefix}_topPC_imgs_vae_decode.png"), nrow=4,)
+    save_imgrid(PC_imgs, join(savedir, f"{prefix}_topPC_imgs_vae_decode.jpg"), nrow=4,)
     # PC_imgs = V_diff[:, :topImg_num].T
     # PC_imgs = PC_imgs.reshape(topImg_num, *latents_reservoir.shape[-3:])
     # PC_imgs_norm = (PC_imgs) / PC_imgs.std(dim=(1, 2, 3), keepdim=True) * 0.2 + 0.5
