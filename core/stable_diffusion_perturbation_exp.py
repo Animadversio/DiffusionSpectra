@@ -252,13 +252,21 @@ U, D, V = torch.svd(latents_mat, )
 #%
 show_img(image[0])
 image[0].save(join(savedir, "sample_orig.png"))
-#%
+torch.save({"latents_traj": latents_traj,
+                    "residue_traj" : residue_traj,
+                    "noise_uncond_traj" : noise_uncond_traj,
+                    "noise_text_traj" : noise_text_traj,
+                    }, join(savedir, "latents_noise_trajs.pt"))
+torch.save({"U": U, "D": D, "V": V}, join(savedir, "residual_PCA.pt"))
+#%%
 pert_scale = 1.0
 inject_step = 10
 iPC = 5
-for iPC in [*range(0, 16), *range(45, 50)]:
+for iPC in [*range(0, 16), *range(45, 51), ]: # *range(45, 50)
     for inject_step in range(0, 51, 5):
-        for pert_scale in [1.0, -1.0, 2.0, -2.0, 5.0, -5.0]:
+        # for pert_scale in [1.0, -1.0, 2.0, -2.0, 5.0, -5.0]:
+        # for pert_scale in [-20.0, -15.0, -10.0, -5.0, 5.0, 10.0, 15.0, 20.0]:
+        for pert_scale in [-20.0, -15.0, -10.0, -5.0, -2.0, -1.0, 1.0, 2.0, 5.0, 10.0, 15.0, 20.0]:
             perturb_latent = V[:, iPC].reshape(1, 4, 64, 64)
             image_perturb, latents_traj_perturb, residue_traj_perturb, _, _ = SD_sampler_perturb(pipe, prompt,
                        num_inference_steps=tsteps, generator=torch.cuda.manual_seed(seed),
@@ -271,33 +279,95 @@ for iPC in [*range(0, 16), *range(45, 50)]:
 #%%
 show_img(image_perturb[0])
 #%%
-RNDseed = 0
-perturb_latent = torch.randn(1, 4, 64, 64, device="cuda",
-                             dtype=torch.float32, generator=torch.cuda.manual_seed(RNDseed))
-perturb_latent = perturb_latent / torch.norm(perturb_latent.flatten())
-image_pertRND, latents_traj_pertRND, residue_traj_pertRND, _, _ = SD_sampler_perturb(pipe, prompt,
-           num_inference_steps=tsteps, generator=torch.cuda.manual_seed(seed),
-           perturb_latent=perturb_latent, perturb_step=inject_step, pert_scale=pert_scale, )
+for RNDseed in range(8, 15):
+    for inject_step in range(0, 51, 5):
+        # for pert_scale in [1.0, -1.0, 2.0, -2.0, 5.0, -5.0]:
+        for pert_scale in [-20.0, -15.0, -10.0, -5.0, -2.0, -1.0, 1.0, 2.0, 5.0, 10.0, 15.0, 20.0]:
+            perturb_latent = torch.randn(1, 4, 64, 64, device="cuda",
+                                         dtype=torch.float32, generator=torch.cuda.manual_seed(RNDseed))
+            perturb_latent = perturb_latent / torch.norm(perturb_latent.flatten())
+            image_pertRND, latents_traj_pertRND, residue_traj_pertRND, _, _ = SD_sampler_perturb(pipe, prompt,
+                       num_inference_steps=tsteps, generator=torch.cuda.manual_seed(seed),
+                       perturb_latent=perturb_latent, perturb_step=inject_step, pert_scale=pert_scale, )
+
+            image_pertRND[0].save(join(savedir,f"sample_RND{RNDseed:03d}_T{inject_step:02d}_scale{pert_scale:.1f}.png"))
+            print(f"sample_RND{RNDseed:03d}_T{inject_step:02d}_scale{pert_scale:.1f}")
+            torch.save({"latents_traj": latents_traj_pertRND,
+                        "residue_traj" : residue_traj_pertRND,},
+                       join(savedir, f"latent_RND{RNDseed:03d}_T{inject_step:02d}_scale{pert_scale:.1f}.pt"))
 #%%
 show_img(image_pertRND[0])
 #%%
-
 from core.utils.montage_utils import make_grid_np
+
+def make_save_montage_pert_T_scale(savedir, idxs, savesuffix, prefix="PC", tsteps=range(0, 51, 5),
+                              scales=(-5.0, -2.0, -1.0, 0.0, 1.0, 2.0, 5.0,), ):
+    os.makedirs(join(savedir, "summary"), exist_ok=True)
+    for idx in tqdm(idxs):
+        img_col = []
+        for inject_step in tsteps:
+            for pert_scale in scales:
+                if pert_scale == 0.0:
+                    img = plt.imread(join(savedir, f"sample_orig.png"))
+                else:
+                    img = plt.imread(join(savedir, f"sample_{prefix}{idx:02d}_T{inject_step:02d}_scale{pert_scale:.1f}.png"))
+                img_col.append(img[:, :, :3])
+        mtg = make_grid_np(img_col, nrow=len(scales))
+        plt.imsave(join(savedir, "summary", f"sample_mtg_{prefix}{idx:02d}{savesuffix}.jpg"), mtg)
+
+#%%
 prompt, dirname = ("a portrait of an aristocrat", "portrait_aristocrat")
+seed = 101
+savedir = join(saveroot, f"{dirname}-seed{seed}")
+make_save_montage_pert_T_scale(savedir, [*range(0, 16), *range(45, 51)], savesuffix="_wide5", prefix="PC",
+                        scales=(-20.0, -15.0, -10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0),)
+#%%
+seed = 101
+savedir = join(saveroot, f"{dirname}-seed{seed}")
+make_save_montage_pert_T_scale(savedir, [*range(0, 16), *range(45, 51)], savesuffix="", prefix="PC",
+                        scales=(-5.0, -2.0, -1.0, 0.0, 1.0, 2.0, 5.0),)
+#%%
 seed = 100
 savedir = join(saveroot, f"{dirname}-seed{seed}")
-os.makedirs(join(savedir, "summary"), exist_ok=True)
-for iPC in [*range(0, 16), *range(45, 50)]:
+make_save_montage_pert_T_scale(savedir, range(15), savesuffix="_wide5", prefix="RND",
+                        scales=(-20.0, -15.0, -10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0),)
+#%%
+
+make_save_montage_pert_T_scale(savedir, range(0, 15), savesuffix="_wide5", prefix="RND",
+                        scales=(-20.0, -15.0, -10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0),)
+#%% Trajectory geometry
+
+
+
+
+
+
+
+#%% Dev zone
+for iPC in [*range(0, 16),]:
+    img_col = []
+    for inject_step in range(0, 51, 5):
+        for pert_scale in [-20.0, -15.0, -10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0]:
+            if pert_scale == 0.0:
+                img = plt.imread(join(savedir, f"sample_orig.png"))
+            else:
+                img = plt.imread(join(savedir,f"sample_PC{iPC:02d}_T{inject_step:02d}_scale{pert_scale:.1f}.png"))
+            img_col.append(img[:,:,:3])
+    mtg = make_grid_np(img_col, nrow=9)
+    plt.imsave(join(savedir, "summary", f"sample_mtg_PC{iPC:02d}_wide5.jpg"), mtg)
+
+#%%
+for RNDseed in range(0, 15):
     img_col = []
     for inject_step in range(0, 51, 5):
         for pert_scale in [-5.0, -2.0, -1.0, 0.0, 1.0, 2.0, 5.0, ]:
             if pert_scale == 0.0:
                 img = plt.imread(join(savedir, f"sample_orig.png"))
             else:
-                img = plt.imread(join(savedir,f"sample_PC{iPC:02d}_T{inject_step:02d}_scale{pert_scale:.1f}.png"))
+                img = plt.imread(join(savedir, f"sample_RND{RNDseed:03d}_T{inject_step:02d}_scale{pert_scale:.1f}.png"))
             img_col.append(img[:,:,:3])
     mtg = make_grid_np(img_col, nrow=7)
-    plt.imsave(join(savedir, "summary", f"sample_mtg_PC{iPC:02d}.jpg"), mtg)
+    plt.imsave(join(savedir, "summary", f"sample_mtg_RND{RNDseed:03d}.jpg"), mtg)
 
+#%%
 
-    "F:\insilico_exps\Diffusion_traj\StableDiffusion_perturb\portrait_aristocrat-seed100"
