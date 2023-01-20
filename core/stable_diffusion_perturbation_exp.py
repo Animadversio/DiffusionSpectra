@@ -302,6 +302,7 @@ from core.utils.montage_utils import make_grid_np
 
 def make_save_montage_pert_T_scale(savedir, idxs, savesuffix, prefix="PC", tsteps=range(0, 51, 5),
                               scales=(-5.0, -2.0, -1.0, 0.0, 1.0, 2.0, 5.0,), ):
+    """ Util function to montage images on the plane spanned by perturb time and scale """
     os.makedirs(join(savedir, "summary"), exist_ok=True)
     for idx in tqdm(idxs):
         img_col = []

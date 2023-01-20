@@ -1,3 +1,5 @@
+""" An simple analysis function that montage figures for easy comparison
+"""
 import os
 import platform
 from diffusers import LMSDiscreteScheduler, DDIMScheduler, PNDMScheduler, \
