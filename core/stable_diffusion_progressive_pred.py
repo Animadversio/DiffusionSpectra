@@ -265,10 +265,11 @@ for prompt, dirname in prompt_dir_pair:
         t_traj = pipe.scheduler.timesteps.cpu()
         alphacum_traj = pipe.scheduler.alphas_cumprod[t_traj]
         pred_z0 = (latents_traj[:-1] -
-                   residue_traj * (1 - alphacum_traj).sqrt().view(-1, 1, 1, 1)) / \
-                  alphacum_traj.sqrt().view(-1, 1, 1, 1)
+                   residue_traj * (1 - alphacum_traj).sqrt().view(-1, 1, 1, 1, 1)) / \
+                  alphacum_traj.sqrt().view(-1, 1, 1, 1, 1)
         img_traj = latents_to_image(pred_z0[:, 0].half().to('cuda'), pipe, batch_size=11)
-        save_imgrid(img_traj, join(savedir, "proj_z0_vae_decode.png"), nrow=10, )
+        # save_imgrid(img_traj, join(savedir, "proj_z0_vae_decode.png"), nrow=10, )
+        save_imgrid(img_traj, join(savedir, "proj_z0_vae_decode_new.png"), nrow=10, )
         #%%
         mean_fin = latents_traj[-1].mean()
         std_fin = latents_traj[-1].std()

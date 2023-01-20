@@ -35,8 +35,8 @@ def dummy_checker(images, **kwargs): return images, False
 pipe.safety_checker = dummy_checker
 #%%
 from typing import Callable, List, Optional, Union
-def show_img(img):
-    plt.figure(figsize=(6,6))
+def show_img(img, figsize=(6,6)):
+    plt.figure(figsize=figsize)
     plt.imshow(img)
     plt.axis("off")
     plt.tight_layout()
