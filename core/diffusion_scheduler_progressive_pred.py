@@ -24,10 +24,10 @@ from core.diffusion_traj_analysis_lib import compute_save_diff_imgs_diff, plot_d
 # model_id = "google/ddpm-ema-cat-256"
 # model_id = "google/ddpm-bedroom-256"
 # model_id = "google/ddpm-ema-bedroom-256"
-model_id = "google/ddpm-church-256"
+# model_id = "google/ddpm-church-256"
 # model_id = "google/ddpm-ema-church-256"
 # model_id = "google/ddpm-ema-celebahq-256"
-# model_id = "google/ddpm-celebahq-256" # most popular
+model_id = "google/ddpm-celebahq-256" # most popular
 # model_id = "google/ddpm-cifar10-32"
 # model_id = "dimpo/ddpm-mnist"  # most popular
 model_id_short = model_id.split("/")[-1]
@@ -82,14 +82,15 @@ def denorm_sample_renorm(x, mu, std):
 
 
 tsteps = 51
-for nameCls, SamplerCls in [("LMSDiscrete", LMSDiscreteScheduler,),
-                            ("EulerDiscrete", EulerDiscreteScheduler,),
+for nameCls, SamplerCls in [#("LMSDiscrete", LMSDiscreteScheduler,),
+                            #("EulerDiscrete", EulerDiscreteScheduler,),
                             ("DDIM", DDIMScheduler,),
-                            ("DPMSolverMultistep", DPMSolverMultistepScheduler,),
-                            ("PNDM", PNDMScheduler,), ]:
+                            #("DPMSolverMultistep", DPMSolverMultistepScheduler,),
+                            #("PNDM", PNDMScheduler,),
+    ]:
     pipe.scheduler = SamplerCls.from_config(pipe.scheduler.config)
     pipe.scheduler.set_timesteps(tsteps)
-    for seed in range(125, 150):
+    for seed in range(150, 300):
         sample, sample_traj, residual_traj, t_traj = sampling(pipe.unet, pipe.scheduler, batch_size=1,
                                                               generator=torch.cuda.manual_seed(seed))
         #%%
