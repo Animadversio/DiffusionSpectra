@@ -27,8 +27,8 @@ from core.diffusion_traj_analysis_lib import compute_save_diff_imgs_diff, plot_d
 # model_id = "google/ddpm-church-256"
 # model_id = "google/ddpm-ema-church-256"
 # model_id = "google/ddpm-ema-celebahq-256"
-model_id = "google/ddpm-celebahq-256" # most popular
-# model_id = "google/ddpm-cifar10-32"
+# model_id = "google/ddpm-celebahq-256" # most popular
+model_id = "google/ddpm-cifar10-32"
 # model_id = "dimpo/ddpm-mnist"  # most popular
 model_id_short = model_id.split("/")[-1]
 # load model and scheduler
@@ -90,7 +90,7 @@ for nameCls, SamplerCls in [#("LMSDiscrete", LMSDiscreteScheduler,),
     ]:
     pipe.scheduler = SamplerCls.from_config(pipe.scheduler.config)
     pipe.scheduler.set_timesteps(tsteps)
-    for seed in range(150, 300):
+    for seed in range(200, 400):
         sample, sample_traj, residual_traj, t_traj = sampling(pipe.unet, pipe.scheduler, batch_size=1,
                                                               generator=torch.cuda.manual_seed(seed))
         #%%
@@ -141,7 +141,8 @@ for nameCls, SamplerCls in [#("LMSDiscrete", LMSDiscreteScheduler,),
                    join(savedir, "latent_diff_PCA.pt"))
         torch.save({"expvar": expvar_noise, "U": U_noise, "D": D_noise, "V": V_noise},
                    join(savedir, "noise_pred_PCA.pt"))
-
+    #     break
+    # break
         # %%
         # compute_save_diff_imgs_diff(savedir, range(0, 51, 5), sample_traj)
         # plot_diff_matrix(savedir, range(0, 51, 5), diff_x_sfx="_img_stdnorm", step_x_sfx="_img_stdnorm",

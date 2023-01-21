@@ -230,8 +230,8 @@ prompt_dir_pair = [
 ]
 #%%
 tsteps = 51
-for prompt, dirname in prompt_dir_pair:
-    for seed in range(100, 125):
+for prompt, dirname in prompt_dir_pair[1:]:
+    for seed in range(125, 150):
         image, latents_traj, residue_traj, noise_uncond_traj, noise_text_traj = SD_sampler(pipe, prompt,
                    num_inference_steps=tsteps, generator=torch.cuda.manual_seed(seed))
         #%%
