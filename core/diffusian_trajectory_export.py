@@ -37,6 +37,7 @@ for seed in range(210, 300):
             change_format(f"{name_Sampler}_seed{seed}_{fignm}", save_fmt)), img)
 
 #%%
+
 #%%
 model_id_short = "ddpm-church-256"
 if platform.system() == "Windows":
@@ -64,13 +65,68 @@ for seed in range(125, 150):
         plt.imsave(join(export_root,
             change_format(f"{name_Sampler}_seed{seed}_{fignm}", save_fmt)), img)
 
+#%%
+model_id_short = "ddpm-mnist"
+if platform.system() == "Windows":
+    saveroot = rf"F:\insilico_exps\Diffusion_traj\{model_id_short}_scheduler"
+elif platform.system() == "Linux":
+    saveroot = rf"/home/binxuwang/insilico_exp/Diffusion_traj/{model_id_short}_scheduler"
+else:
+    raise RuntimeError("Unknown system")
+export_root = r"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\MNISTTrajectory"
+os.makedirs(export_root, exist_ok=True)
+save_fmt = "jpg"
+exp_fignames = ["proj_z0_vae_decode.png",
+                "sample_diff_lag1_stdnorm_vae_decode.png",
+                "samples_all.png",]
+
+name_Sampler = "DDIM"
+for seed in range(200, 400):
+    savedir = join(saveroot, name_Sampler, f"seed{seed}")
+    for fignm in exp_fignames:
+        if os.path.exists(join(savedir, fignm)):
+            img = plt.imread(join(savedir, fignm))
+        elif os.path.exists(change_format(join(savedir, fignm), "jpg")):
+            img = plt.imread(change_format(join(savedir, fignm), "jpg"))
+        else:
+            raise RuntimeError(f"Can't find {fignm} in {savedir}")
+        plt.imsave(join(export_root,
+            change_format(f"{name_Sampler}_seed{seed}_{fignm}", save_fmt)), img)
+
+#%%
+model_id_short = "ddpm-cifar10-32"
+if platform.system() == "Windows":
+    saveroot = rf"F:\insilico_exps\Diffusion_traj\{model_id_short}_scheduler"
+elif platform.system() == "Linux":
+    saveroot = rf"/home/binxuwang/insilico_exp/Diffusion_traj/{model_id_short}_scheduler"
+else:
+    raise RuntimeError("Unknown system")
+export_root = r"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\CIFARTrajectory"
+os.makedirs(export_root, exist_ok=True)
+save_fmt = "jpg"
+exp_fignames = ["proj_z0_vae_decode.png",
+                "sample_diff_lag1_stdnorm_vae_decode.png",
+                "samples_all.png",]
+
+name_Sampler = "DDIM"
+for seed in range(200, 400):
+    savedir = join(saveroot, name_Sampler, f"seed{seed}")
+    for fignm in exp_fignames:
+        if os.path.exists(join(savedir, fignm)):
+            img = plt.imread(join(savedir, fignm))
+        elif os.path.exists(change_format(join(savedir, fignm), "jpg")):
+            img = plt.imread(change_format(join(savedir, fignm), "jpg"))
+        else:
+            raise RuntimeError(f"Can't find {fignm} in {savedir}")
+        plt.imsave(join(export_root,
+            change_format(f"{name_Sampler}_seed{seed}_{fignm}", save_fmt)), img)
 
 #%%
 model_id_short = "StableDiffusion"
 if platform.system() == "Windows":
-    saveroot = rf"F:\insilico_exps\Diffusion_traj\{model_id_short}"
+    saveroot = rf"F:\insilico_exps\Diffusion_traj\{model_id_short}_projection"
 elif platform.system() == "Linux":
-    saveroot = rf"/home/binxuwang/insilico_exp/Diffusion_traj/{model_id_short}"
+    saveroot = rf"/home/binxuwang/insilico_exp/Diffusion_traj/{model_id_short}_projection"
 else:
     raise RuntimeError("Unknown system")
 
@@ -87,12 +143,13 @@ prompt_dir_pair = [
 ]
 
 save_fmt = "jpg"
-exp_fignames = ["proj_z0_vae_decode.png",
+exp_fignames = [#"proj_z0_vae_decode.png",
+                "proj_z0_vae_decode_new.png",
                 "samples.png",]
 
 name_Sampler = "PNDM"
 for prompt, dirname in prompt_dir_pair:
-    for seed in range(100, 125):
+    for seed in range(100, 150):
         savedir = join(saveroot, f"{dirname}-seed{seed}")
         for fignm in exp_fignames:
             if os.path.exists(join(savedir, fignm)):
