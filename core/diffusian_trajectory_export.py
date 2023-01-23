@@ -1,3 +1,4 @@
+"""Simple script to export figures to a different format and combine """
 import os
 import platform
 from os.path import join
@@ -17,7 +18,7 @@ elif platform.system() == "Linux":
     saveroot = rf"/home/binxuwang/insilico_exp/Diffusion_traj/{model_id_short}_scheduler"
 else:
     raise RuntimeError("Unknown system")
-export_root = r"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\FaceTrajectory"
+export_root = rf"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\DiffTrajectory\{model_id_short}"
 save_fmt = "jpg"
 exp_fignames = ["proj_z0_vae_decode.png",
                 "sample_diff_lag1_stdnorm_vae_decode.png",
@@ -37,8 +38,6 @@ for seed in range(210, 300):
             change_format(f"{name_Sampler}_seed{seed}_{fignm}", save_fmt)), img)
 
 #%%
-
-#%%
 model_id_short = "ddpm-church-256"
 if platform.system() == "Windows":
     saveroot = rf"F:\insilico_exps\Diffusion_traj\{model_id_short}_scheduler"
@@ -46,7 +45,7 @@ elif platform.system() == "Linux":
     saveroot = rf"/home/binxuwang/insilico_exp/Diffusion_traj/{model_id_short}_scheduler"
 else:
     raise RuntimeError("Unknown system")
-export_root = r"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\ChurchTrajectory"
+export_root = rf"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\DiffTrajectory\{model_id_short}"
 save_fmt = "jpg"
 exp_fignames = ["proj_z0_vae_decode.png",
                 "sample_diff_lag1_stdnorm_vae_decode.png",
@@ -73,7 +72,7 @@ elif platform.system() == "Linux":
     saveroot = rf"/home/binxuwang/insilico_exp/Diffusion_traj/{model_id_short}_scheduler"
 else:
     raise RuntimeError("Unknown system")
-export_root = r"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\MNISTTrajectory"
+export_root = rf"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\DiffTrajectory\{model_id_short}"
 os.makedirs(export_root, exist_ok=True)
 save_fmt = "jpg"
 exp_fignames = ["proj_z0_vae_decode.png",
@@ -101,7 +100,7 @@ elif platform.system() == "Linux":
     saveroot = rf"/home/binxuwang/insilico_exp/Diffusion_traj/{model_id_short}_scheduler"
 else:
     raise RuntimeError("Unknown system")
-export_root = r"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\CIFARTrajectory"
+export_root = rf"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\DiffTrajectory\{model_id_short}"
 os.makedirs(export_root, exist_ok=True)
 save_fmt = "jpg"
 exp_fignames = ["proj_z0_vae_decode.png",
@@ -131,7 +130,7 @@ else:
     raise RuntimeError("Unknown system")
 
 
-export_root = r"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\StableDiffusionTraj"
+export_root = r"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\DiffTrajectory\StableDiffusion"
 prompt_dir_pair = [
     ("a portrait of an aristocrat", "portrait_aristocrat"),
     ("a portrait of an light bulb", "portrait_lightbulb"),
