@@ -6,19 +6,8 @@ import numpy as np
 import seaborn as sns
 import torch
 from lpips import LPIPS
-from core.utils.montage_utils import crop_from_montage
+from core.utils.montage_utils import crop_from_montage, crop_all_from_montage
 from core.utils.plot_utils import show_imgrid, save_imgrid, saveallforms, to_imgrid
-
-def crop_all_from_montage(img, totalnum, imgsize=512, pad=2):
-    nrow, ncol = (img.shape[0] - pad) // (imgsize + pad), (img.shape[1] - pad) // (imgsize + pad)
-    imgcol = []
-    for imgid in range(totalnum):
-        ri, ci = np.unravel_index(imgid, (nrow, ncol))
-        img_crop = img[pad + (pad + imgsize) * ri:pad + imgsize + (pad + imgsize) * ri, \
-               pad + (pad + imgsize) * ci:pad + imgsize + (pad + imgsize) * ci, :]
-        imgcol.append(img_crop)
-    return imgcol
-
 
 # exportroot = r"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\DiffusionConvergence"
 Dist = LPIPS(net='squeeze').cuda().eval()

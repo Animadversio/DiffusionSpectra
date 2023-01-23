@@ -223,7 +223,6 @@ def denorm_sample_renorm(x, mu, std):
 import matplotlib
 matplotlib.use('Agg')
 # use the interactive backend
-
 # matplotlib.use('module://backend_interagg')
 #%%
 import platform

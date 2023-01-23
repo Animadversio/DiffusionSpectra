@@ -81,3 +81,5 @@ for seed in range(200, 400):
     plot_diff_matrix(savedir, range(0, 16, 1), diff_x_sfx="_img_stdnorm", step_x_sfx="_img_stdnorm",
                      save_sfx="_img_stdnorm_early0-15", tril=True)
 
+#%%
+
