@@ -3,8 +3,11 @@ import os
 import platform
 from os.path import join
 import matplotlib.pyplot as plt
-
+import torch
+from core.utils.plot_utils import show_imgrid, save_imgrid, saveallforms, to_imgrid
+from tqdm import tqdm
 #%%
+
 """Separate a path into file name and extension"""
 def change_format(path, new_ext):
     """Change the file format of a file"""
@@ -20,11 +23,10 @@ else:
     raise RuntimeError("Unknown system")
 export_root = rf"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\DiffTrajectory\{model_id_short}"
 save_fmt = "jpg"
+name_Sampler = "DDIM"
 exp_fignames = ["proj_z0_vae_decode.png",
                 "sample_diff_lag1_stdnorm_vae_decode.png",
                 "samples_all.png",]
-
-name_Sampler = "DDIM"
 for seed in range(210, 300):
     savedir = join(saveroot, name_Sampler, f"seed{seed}")
     for fignm in exp_fignames:
@@ -37,6 +39,13 @@ for seed in range(210, 300):
         plt.imsave(join(export_root,
             change_format(f"{name_Sampler}_seed{seed}_{fignm}", save_fmt)), img)
 
+for seed in tqdm(range(125, 300)):
+    savedir = join(saveroot, name_Sampler, f"seed{seed}")
+    traj_data = torch.load(join(savedir, "state_reservoir.pt"))
+    save_imgrid((1 + traj_data["latents_traj"])/2,
+                join(export_root, f"{name_Sampler}_seed{seed}_sample_traj.jpg"), nrow=10)
+    # save_imgrid(traj_data["residue_traj"],
+    #             join(export_root, f"{name_Sampler}_seed{seed}_sample_traj.jpg"), nrow=10)
 #%%
 model_id_short = "ddpm-church-256"
 if platform.system() == "Windows":
@@ -46,12 +55,12 @@ elif platform.system() == "Linux":
 else:
     raise RuntimeError("Unknown system")
 export_root = rf"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\DiffTrajectory\{model_id_short}"
+name_Sampler = "DDIM"
 save_fmt = "jpg"
 exp_fignames = ["proj_z0_vae_decode.png",
                 "sample_diff_lag1_stdnorm_vae_decode.png",
                 "samples_all.png",]
 
-name_Sampler = "DDIM"
 for seed in range(125, 150):
     savedir = join(saveroot, name_Sampler, f"seed{seed}")
     for fignm in exp_fignames:
@@ -64,6 +73,11 @@ for seed in range(125, 150):
         plt.imsave(join(export_root,
             change_format(f"{name_Sampler}_seed{seed}_{fignm}", save_fmt)), img)
 
+for seed in tqdm(range(125, 150)):
+    savedir = join(saveroot, name_Sampler, f"seed{seed}")
+    traj_data = torch.load(join(savedir, "state_reservoir.pt"))
+    save_imgrid((1 + traj_data["latents_traj"])/2,
+                join(export_root, f"{name_Sampler}_seed{seed}_sample_traj.jpg"), nrow=10)
 #%%
 model_id_short = "ddpm-mnist"
 if platform.system() == "Windows":
@@ -74,24 +88,29 @@ else:
     raise RuntimeError("Unknown system")
 export_root = rf"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\DiffTrajectory\{model_id_short}"
 os.makedirs(export_root, exist_ok=True)
+name_Sampler = "DDIM"
 save_fmt = "jpg"
 exp_fignames = ["proj_z0_vae_decode.png",
                 "sample_diff_lag1_stdnorm_vae_decode.png",
                 "samples_all.png",]
 
-name_Sampler = "DDIM"
-for seed in range(200, 400):
-    savedir = join(saveroot, name_Sampler, f"seed{seed}")
-    for fignm in exp_fignames:
-        if os.path.exists(join(savedir, fignm)):
-            img = plt.imread(join(savedir, fignm))
-        elif os.path.exists(change_format(join(savedir, fignm), "jpg")):
-            img = plt.imread(change_format(join(savedir, fignm), "jpg"))
-        else:
-            raise RuntimeError(f"Can't find {fignm} in {savedir}")
-        plt.imsave(join(export_root,
-            change_format(f"{name_Sampler}_seed{seed}_{fignm}", save_fmt)), img)
+# for seed in range(200, 400):
+#     savedir = join(saveroot, name_Sampler, f"seed{seed}")
+#     for fignm in exp_fignames:
+#         if os.path.exists(join(savedir, fignm)):
+#             img = plt.imread(join(savedir, fignm))
+#         elif os.path.exists(change_format(join(savedir, fignm), "jpg")):
+#             img = plt.imread(change_format(join(savedir, fignm), "jpg"))
+#         else:
+#             raise RuntimeError(f"Can't find {fignm} in {savedir}")
+#         plt.imsave(join(export_root,
+#             change_format(f"{name_Sampler}_seed{seed}_{fignm}", save_fmt)), img)
 
+for seed in tqdm(range(200, 400)):
+    savedir = join(saveroot, name_Sampler, f"seed{seed}")
+    traj_data = torch.load(join(savedir, "state_reservoir.pt"))
+    save_imgrid((1 + traj_data["latents_traj"]) / 2,
+                join(export_root, f"{name_Sampler}_seed{seed}_sample_traj.jpg"), nrow=10)
 #%%
 model_id_short = "ddpm-cifar10-32"
 if platform.system() == "Windows":
@@ -102,24 +121,29 @@ else:
     raise RuntimeError("Unknown system")
 export_root = rf"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\DiffTrajectory\{model_id_short}"
 os.makedirs(export_root, exist_ok=True)
+name_Sampler = "DDIM"
 save_fmt = "jpg"
 exp_fignames = ["proj_z0_vae_decode.png",
                 "sample_diff_lag1_stdnorm_vae_decode.png",
                 "samples_all.png",]
 
-name_Sampler = "DDIM"
-for seed in range(200, 400):
-    savedir = join(saveroot, name_Sampler, f"seed{seed}")
-    for fignm in exp_fignames:
-        if os.path.exists(join(savedir, fignm)):
-            img = plt.imread(join(savedir, fignm))
-        elif os.path.exists(change_format(join(savedir, fignm), "jpg")):
-            img = plt.imread(change_format(join(savedir, fignm), "jpg"))
-        else:
-            raise RuntimeError(f"Can't find {fignm} in {savedir}")
-        plt.imsave(join(export_root,
-            change_format(f"{name_Sampler}_seed{seed}_{fignm}", save_fmt)), img)
+# for seed in range(200, 400):
+#     savedir = join(saveroot, name_Sampler, f"seed{seed}")
+#     for fignm in exp_fignames:
+#         if os.path.exists(join(savedir, fignm)):
+#             img = plt.imread(join(savedir, fignm))
+#         elif os.path.exists(change_format(join(savedir, fignm), "jpg")):
+#             img = plt.imread(change_format(join(savedir, fignm), "jpg"))
+#         else:
+#             raise RuntimeError(f"Can't find {fignm} in {savedir}")
+#         plt.imsave(join(export_root,
+#             change_format(f"{name_Sampler}_seed{seed}_{fignm}", save_fmt)), img)
 
+for seed in tqdm(range(200, 400)):
+    savedir = join(saveroot, name_Sampler, f"seed{seed}")
+    traj_data = torch.load(join(savedir, "state_reservoir.pt"))
+    save_imgrid((1 + traj_data["latents_traj"]) / 2,
+                join(export_root, f"{name_Sampler}_seed{seed}_sample_traj.jpg"), nrow=10)
 #%%
 model_id_short = "StableDiffusion"
 if platform.system() == "Windows":
