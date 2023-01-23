@@ -2,6 +2,7 @@ import numpy as np
 from skimage.transform import resize
 import matplotlib.pylab as plt
 import matplotlib
+from typing import List, Tuple, Union
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 
@@ -240,6 +241,7 @@ def make_grid_T(
                 k = k + 1
     return grid
 
+
 def color_frame(img, color, pad=10):
     outimg = np.ones((img.shape[0] + pad * 2, img.shape[1] + pad * 2, 3))
     outimg = outimg * color[:3]
@@ -288,14 +290,31 @@ def color_framed_montages(image_list, image_shape, montage_shape, scores, cmap=p
     return image_montages
 
 
-def crop_from_montage(img, imgid:tuple =(0,0), imgsize=256, pad=2):
+def crop_from_montage(img, imgid: Union[Tuple, int] = (0,0), imgsize=256, pad=2):
     nrow, ncol = (img.shape[0] - pad) // (imgsize + pad), (img.shape[1] - pad) // (imgsize + pad)
     if imgid == "rand":  imgid = np.random.randint(nrow * ncol)
     elif type(imgid) is tuple:
         ri, ci = imgid
-    elif imgid < 0:
-        imgid = nrow * ncol + imgid
-        ri, ci = np.unravel_index(imgid, (nrow, ncol))
+    elif type(imgid) is int:
+        if imgid < 0:
+            imgid = nrow * ncol + imgid
+            ri, ci = np.unravel_index(imgid, (nrow, ncol))
+        else:
+            ri, ci = np.unravel_index(imgid, (nrow, ncol))
+    else:
+        raise Exception("imgid must be tuple or int")
     img_crop = img[pad + (pad+imgsize)*ri:pad + imgsize + (pad+imgsize)*ri, \
                    pad + (pad+imgsize)*ci:pad + imgsize + (pad+imgsize)*ci, :]
     return img_crop
+
+
+def crop_all_from_montage(img, totalnum, imgsize=512, pad=2):
+    """Return all crops from a montage image"""
+    nrow, ncol = (img.shape[0] - pad) // (imgsize + pad), (img.shape[1] - pad) // (imgsize + pad)
+    imgcol = []
+    for imgid in range(totalnum):
+        ri, ci = np.unravel_index(imgid, (nrow, ncol))
+        img_crop = img[pad + (pad + imgsize) * ri:pad + imgsize + (pad + imgsize) * ri, \
+               pad + (pad + imgsize) * ci:pad + imgsize + (pad + imgsize) * ci, :]
+        imgcol.append(img_crop)
+    return imgcol
