@@ -239,8 +239,10 @@ prompt_dir_pair = [
 ]
 tsteps = 51
 prompt, dirname = ("a portrait of an aristocrat", "portrait_aristocrat")
-
 seed = 101
+prompt, dirname = ("a large box containing an apple and a toy teddy bear", "box_apple_bear")
+seed = 130
+
 savedir = join(saveroot, f"{dirname}-seed{seed}")
 os.makedirs(savedir, exist_ok=True)
 image, latents_traj, residue_traj, noise_uncond_traj, noise_text_traj = SD_sampler_perturb(pipe, prompt,
@@ -252,17 +254,17 @@ U, D, V = torch.svd(latents_mat, )
 #%
 show_img(image[0])
 image[0].save(join(savedir, "sample_orig.png"))
-torch.save({"latents_traj": latents_traj,
-                    "residue_traj" : residue_traj,
-                    "noise_uncond_traj" : noise_uncond_traj,
-                    "noise_text_traj" : noise_text_traj,
-                    }, join(savedir, "latents_noise_trajs.pt"))
-torch.save({"U": U, "D": D, "V": V}, join(savedir, "residual_PCA.pt"))
+# torch.save({"latents_traj": latents_traj,
+#                     "residue_traj" : residue_traj,
+#                     "noise_uncond_traj" : noise_uncond_traj,
+#                     "noise_text_traj" : noise_text_traj,
+#                     }, join(savedir, "latents_noise_trajs.pt"))
+# torch.save({"U": U, "D": D, "V": V}, join(savedir, "residual_PCA.pt"))
 #%%
 pert_scale = 1.0
 inject_step = 10
 iPC = 5
-for iPC in [*range(0, 16), *range(45, 51), ]: # *range(45, 50)
+for iPC in [50]:#[*range(0, 16), *range(45, 51), ]: # *range(45, 50)
     for inject_step in range(0, 51, 5):
         # for pert_scale in [1.0, -1.0, 2.0, -2.0, 5.0, -5.0]:
         # for pert_scale in [-20.0, -15.0, -10.0, -5.0, 5.0, 10.0, 15.0, 20.0]:
@@ -276,10 +278,8 @@ for iPC in [*range(0, 16), *range(45, 51), ]: # *range(45, 50)
             torch.save({"latents_traj": latents_traj_perturb,
                         "residue_traj" : residue_traj_perturb,},
                        join(savedir, f"latent_PC{iPC:02d}_T{inject_step:02d}_scale{pert_scale:.1f}.pt"))
-#%%
-show_img(image_perturb[0])
-#%%
-for RNDseed in range(8, 15):
+
+for RNDseed in range(0, 15):
     for inject_step in range(0, 51, 5):
         # for pert_scale in [1.0, -1.0, 2.0, -2.0, 5.0, -5.0]:
         for pert_scale in [-20.0, -15.0, -10.0, -5.0, -2.0, -1.0, 1.0, 2.0, 5.0, 10.0, 15.0, 20.0]:
@@ -296,8 +296,12 @@ for RNDseed in range(8, 15):
                         "residue_traj" : residue_traj_pertRND,},
                        join(savedir, f"latent_RND{RNDseed:03d}_T{inject_step:02d}_scale{pert_scale:.1f}.pt"))
 #%%
-show_img(image_pertRND[0])
 #%%
+show_img(image_perturb[0])
+#%%
+#%%
+show_img(image_pertRND[0])
+#%% Montage and summarize the results
 from core.utils.montage_utils import make_grid_np
 
 def make_save_montage_pert_T_scale(savedir, idxs, savesuffix, prefix="PC", tsteps=range(0, 51, 5),
@@ -311,10 +315,16 @@ def make_save_montage_pert_T_scale(savedir, idxs, savesuffix, prefix="PC", tstep
                 if pert_scale == 0.0:
                     img = plt.imread(join(savedir, f"sample_orig.png"))
                 else:
-                    img = plt.imread(join(savedir, f"sample_{prefix}{idx:02d}_T{inject_step:02d}_scale{pert_scale:.1f}.png"))
+                    if prefix == "PC":
+                        img = plt.imread(join(savedir, f"sample_{prefix}{idx:02d}_T{inject_step:02d}_scale{pert_scale:.1f}.png"))
+                    elif prefix == "RND":
+                        img = plt.imread(join(savedir, f"sample_{prefix}{idx:03d}_T{inject_step:02d}_scale{pert_scale:.1f}.png"))
                 img_col.append(img[:, :, :3])
         mtg = make_grid_np(img_col, nrow=len(scales))
-        plt.imsave(join(savedir, "summary", f"sample_mtg_{prefix}{idx:02d}{savesuffix}.jpg"), mtg)
+        if prefix == "PC":
+            plt.imsave(join(savedir, "summary", f"sample_mtg_{prefix}{idx:02d}{savesuffix}.jpg"), mtg)
+        elif prefix == "RND":
+            plt.imsave(join(savedir, "summary", f"sample_mtg_{prefix}{idx:03d}{savesuffix}.jpg"), mtg)
 
 #%%
 prompt, dirname = ("a portrait of an aristocrat", "portrait_aristocrat")
@@ -336,7 +346,24 @@ make_save_montage_pert_T_scale(savedir, range(15), savesuffix="_wide5", prefix="
 
 make_save_montage_pert_T_scale(savedir, range(0, 15), savesuffix="_wide5", prefix="RND",
                         scales=(-20.0, -15.0, -10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0),)
+make_save_montage_pert_T_scale(savedir, range(0, 15), savesuffix="", prefix="RND",
+                        scales=(-5.0, -2.0, -1.0, 0.0, 1.0, 2.0, 5.0),)
 #%% Trajectory geometry
+
+prompt, dirname = ("a large box containing an apple and a toy teddy bear", "box_apple_bear")
+seed = 130
+savedir = join(saveroot, f"{dirname}-seed{seed}")
+#
+make_save_montage_pert_T_scale(savedir, [*range(0, 16), *range(45, 51)], savesuffix="", prefix="PC",
+                        scales=(-5.0, -2.0, -1.0, 0.0, 1.0, 2.0, 5.0),)
+make_save_montage_pert_T_scale(savedir, [*range(0, 16), *range(45, 51)], savesuffix="_wide5", prefix="PC",
+                        scales=(-20.0, -15.0, -10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0),)
+#%%
+make_save_montage_pert_T_scale(savedir, range(0, 15), savesuffix="_wide5", prefix="RND",
+                        scales=(-20.0, -15.0, -10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0),)
+make_save_montage_pert_T_scale(savedir, range(0, 15), savesuffix="", prefix="RND",
+                        scales=(-5.0, -2.0, -1.0, 0.0, 1.0, 2.0, 5.0),)
+
 
 
 
