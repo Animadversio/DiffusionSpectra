@@ -12,7 +12,6 @@ def transforms(examples):
     examples["pixel_values"] = [ToTensor()(image) for image in examples["img"]]
     return examples
 
-
 cifar10data_tsr = cifar10data.map(transforms, remove_columns=["img"], batched=True)
 cifar10data_tsr.set_format(type="torch", columns=["pixel_values", "label",])
 #%%
@@ -25,31 +24,45 @@ mnistdata_tsr = mnistdata.map(transforms, remove_columns=["image"], batched=True
 mnistdata_tsr.set_format(type="torch", columns=["pixel_values", "label",])
 
 #%% MNIST
-imgtsr = mnistdata_tsr["train"]["pixel_values"]
+savedir = r"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\Figures\ImageSpacePCA\MNIST"
+#%%
+imgtsr = mnistdata_tsr["train"]["pixel_values"].expand(-1,3,-1,-1)
 #%%
 imgmean = imgtsr.mean(dim=0, keepdim=True)
-#%%
-U, S, V = torch.svd((imgtsr - imgmean).expand(-1,3,-1,-1).flatten(1))
+U, S, V = torch.svd((imgtsr - imgmean).flatten(1))
 cov_eigs = S**2 / (imgtsr.shape[0] - 1)
+#%%
+torch.save({"U": U, "S": S, "V": V, "mean": imgmean, "cov_eigs": cov_eigs},
+           join(savedir, "mnist_pca.pt"))
+#%%
+save_imgrid(imgmean, join(savedir, "mnist_mean.png"))
+save_imgrid(torch.clamp(0.5+V.reshape(3, 32, 32, 3072)\
+                        .permute(3, 0, 1, 2)[:100]*10, 0, 1),
+            join(savedir, "mnist_0-100PC.jpg"), nrow=10)
+save_imgrid(imgtsr[:100], join(savedir, "mnist_samples_real.jpg"), nrow=10)
+#%%
+plt.semilogy(cov_eigs)
+plt.xlabel("PC index")
+plt.ylabel("covariance")
+plt.show()
+#%%
 #%%
 show_imgrid(torch.clamp(0.5+V.reshape(3, 32, 32, 3072)\
                         .permute(3, 0, 1, 2)[:200]*10, 0, 1), nrow=10)
 #%%
-show_imgrid(torch.clamp(0.5+V.reshape(1, 28, 28, 784)\
-                        .permute(3, 0, 1, 2)[:200]*5, 0, 1), nrow=10)
-#%%
 show_imgrid(imgtsr[:64])
 #%%
-traj_dir = r"F:\insilico_exps\Diffusion_traj\ddpm-mnist_scheduler\DDIM"
-traj_collection = []
-for seed in range(200, 400):
-    traj_data = torch.load(join(traj_dir, f"seed{seed}", "state_reservoir.pt"))
-    sample_traj = traj_data["latents_traj"]
-    res_traj = traj_data['residue_traj']
-    t_traj = traj_data['t_traj']
-    break
+
+
 #%%
-PC_proj_Xt = (sample_traj.flatten(1) - imgmean.expand(-1,3,-1,-1).flatten())@ V[:,]
+
+#%%
+#%%
+
+#%%
+
+
+
 #%%
 plt.plot(PC_proj_Xt)
 plt.show()
@@ -60,20 +73,37 @@ ratio = PC_proj_Xt[-1,:] / PC_proj_Xt[0,:]
 plt.plot(ratio)
 plt.show()
 #%%
-show_imgrid(sample_traj[-1:])
 
 #%% CIFAR10
+savedir = r"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\Figures\ImageSpacePCA\CIFAR10"
 imgtsr_cifar = cifar10data_tsr["train"]["pixel_values"]
 #%%
 imgmean = imgtsr_cifar.mean(dim=0, keepdim=True)
 U_c, S_c, V_c = torch.svd((imgtsr_cifar - imgmean).flatten(1))
-cov_eig = S_c ** 2 / (imgtsr_cifar.shape[0] - 1)
+cov_eigs = S_c ** 2 / (imgtsr_cifar.shape[0] - 1)
+#%%
+torch.save({"U": U_c, "S": S_c, "V": V_c, "mean": imgmean, "cov_eigs": cov_eigs},
+           join(savedir, "CIFAR10_pca.pt"))
+#%%
+save_imgrid(imgmean, join(savedir, "CIFAR10_mean.png"))
+save_imgrid(torch.clamp(0.5+V_c.reshape(3, 32, 32, 3072)\
+                        .permute(3, 0, 1, 2)[:100]*10, 0, 1),
+            join(savedir, "CIFAR10_0-100PC.jpg"), nrow=10)
+save_imgrid(imgtsr_cifar[:100], join(savedir, "CIFAR10_samples_real.jpg"), nrow=10)
+#%%
+
+
+
 #%%
 show_imgrid(imgmean)
-#%%
 show_imgrid(torch.clamp(0.5+V_c.reshape(3, 32, 32, 3072)\
                         .permute(3, 0, 1, 2)[:200]*4, 0, 1), nrow=10)
-#%%
+
+
+
+
+
+#%% Scratch zone
 from diffusers import DDIMPipeline
 traj_dir = r"F:\insilico_exps\Diffusion_traj\ddpm-cifar10-32_scheduler\DDIM"
 model_id = "google/ddpm-cifar10-32"  # most popular
