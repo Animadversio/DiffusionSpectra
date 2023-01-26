@@ -111,6 +111,16 @@ def trajectory_geometry_pipeline(latents_reservoir, savedir):
     plt.close("all")
 
 
+def state_PCA_compute(latents_reservoir, savedir,
+                        savestr="latent_traj"):
+    latents_mat = latents_reservoir.flatten(1).float()
+    latents_mat = latents_mat - latents_mat.mean(dim=0)
+    U, D, V = torch.svd(latents_mat, )
+    expvar_vec = torch.cumsum(D ** 2 / (D ** 2).sum(), dim=0)
+    savedict = {"expvar": expvar_vec, "U": U, "D": D, "V": V}
+    torch.save(savedict, join(savedir, f"{savestr}_PCA.pt"))
+    return savedict
+
 
 def latent_PCA_analysis(latents_reservoir, savedir,
                         proj_planes=[(0, 1)], savestr="latent_traj"):
