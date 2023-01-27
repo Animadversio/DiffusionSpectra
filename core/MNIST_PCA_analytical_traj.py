@@ -183,6 +183,13 @@ plt.title("Fraction of squared error along eigen vector for endpoint x0")
 plt.legend()
 saveallforms(figdir, f"x0_deviation_proj_errfrac_synopsis")
 plt.show()
+
+
+
+
+
+
+
 #%%
 PCrng = range(800)
 plt.figure(figsize=[4, 4])
