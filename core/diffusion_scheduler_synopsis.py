@@ -67,7 +67,7 @@ figure_names = [
 import os
 prompt_brief = "portrait_aristocrat"
 prompt_brief = "portrait_lightbulb"
-for seed in range(100, 115):
+for seed in range(101, 115):
     os.makedirs(join(saveroot, "synopsis", f"{prompt_brief}-seed{seed}"), exist_ok=True)
     for fignm in figure_names:
         img_col = []

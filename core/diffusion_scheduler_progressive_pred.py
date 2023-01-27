@@ -1,4 +1,4 @@
-
+"""Main computational code for sampling from the diffusion model."""
 
 import os
 from os.path import join

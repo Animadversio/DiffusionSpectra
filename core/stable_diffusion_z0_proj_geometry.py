@@ -252,6 +252,7 @@ for prompt, dirname in prompt_dir_pair[1:]:
                    residue_traj * (1 - alphacum_traj).sqrt().view(-1, 1, 1, 1, 1)) / \
                   alphacum_traj.sqrt().view(-1, 1, 1, 1, 1)
         img_traj = latents_to_image(pred_z0[:, 0].half().to('cuda'), pipe, batch_size=11)
+        # bug fixed.
         mtg_pil = save_imgrid(img_traj, join(savedir, "proj_z0_vae_decode_new.jpg"), nrow=10, )
         #%%
         # expvar_diff, U_diff, D_diff, V_diff = latent_diff_PCA_analysis(latents_traj, savedir,
