@@ -112,9 +112,10 @@ def trajectory_geometry_pipeline(latents_reservoir, savedir):
 
 
 def state_PCA_compute(latents_reservoir, savedir,
-                        savestr="latent_traj"):
+                        savestr="latent_traj", center=True):
     latents_mat = latents_reservoir.flatten(1).float()
-    latents_mat = latents_mat - latents_mat.mean(dim=0)
+    if center:
+        latents_mat = latents_mat - latents_mat.mean(dim=0)
     U, D, V = torch.svd(latents_mat, )
     expvar_vec = torch.cumsum(D ** 2 / (D ** 2).sum(), dim=0)
     savedict = {"expvar": expvar_vec, "U": U, "D": D, "V": V}
@@ -225,7 +226,8 @@ def PCA_data_visualize(latents_reservoir, U_diff, D_diff, V_diff, savedir, topcu
     save_imgrid(PC_imgs_norm, join(savedir, f"{prefix}_topPC_imgs_vis.jpg"), nrow=4, )
 
 
-def ldm_PCA_data_visualize(latents_reservoir, pipe, U_diff, D_diff, V_diff, savedir, topcurv_num=8, topImg_num=16, prefix="latent_diff"):
+def ldm_PCA_data_visualize(latents_reservoir, pipe, U_diff, D_diff, V_diff, savedir, topcurv_num=8, topImg_num=16,
+                           prefix="latent_diff", batch_size=8):
     """
     Example:
         PCA_data_visualize(latents_reservoir, U, D, V, savedir, topcurv_num=8, topImg_num=16, prefix="latent_traj")
@@ -258,7 +260,7 @@ def ldm_PCA_data_visualize(latents_reservoir, pipe, U_diff, D_diff, V_diff, save
     plt.show()
     plt.close("all")
     # denorm_var(latent_diff[None, :], mean_fin, std_fin)
-    PC_imgs = latentvecs_to_image(100 * V_diff[:, 0:topImg_num].T, pipe)
+    PC_imgs = latentvecs_to_image(100 * V_diff[:, 0:topImg_num].T, pipe, batch_size=batch_size)
     save_imgrid(PC_imgs, join(savedir, f"{prefix}_topPC_imgs_vae_decode.jpg"), nrow=4,)
     # PC_imgs = V_diff[:, :topImg_num].T
     # PC_imgs = PC_imgs.reshape(topImg_num, *latents_reservoir.shape[-3:])
