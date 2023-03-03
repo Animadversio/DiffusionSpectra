@@ -84,6 +84,17 @@ class GaussianMixture:
         gmm_samps = all_samples[rand_component, np.arange(N), :]
         return gmm_samps, rand_component, all_samples
 
+    def score_grid(self, XXYYs):
+        XX = XXYYs[0]
+        pnts = np.stack([YY.flatten() for YY in XXYYs], axis=1)
+        score_vecs = self.score(pnts)
+        prob = self.pdf(pnts)
+        logprob = np.log(prob)
+        prob = prob.reshape(XX.shape)
+        logprob = logprob.reshape(XX.shape)
+        score_vecs = score_vecs.reshape((*XX.shape, -1))
+        return prob, logprob, score_vecs
+
 
 from torch.distributions import MultivariateNormal
 class GaussianMixture_torch:

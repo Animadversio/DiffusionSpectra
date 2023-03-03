@@ -26,7 +26,6 @@ def plot_gaussian_contours(mu, cov, ax, nstd=2, **kwargs):
     return ellip
 
 #%%
-#%%
 from diffusers import DDIMPipeline, DDPMPipeline
 # model_id = "google/ddpm-cifar10-32"
 model_id = "google/ddpm-celebahq-256" # most popular
@@ -84,7 +83,7 @@ for t_cur in t_seq:
     plt.subplot(1, 2, 1)
     plt.contour(xx, yy, logprob.numpy(), levels=np.arange(-15, 0, 1))
     plt.quiver(xx[slc, slc], yy[slc, slc], score_vec[slc, slc, 0], score_vec[slc, slc, 1],
-               scale_units='xy', scale=6)
+        scale_units='xy', scale=6)
     plt.axis('image')
     # plt.colorbar()
     plt.subplot(1, 2, 2)
@@ -117,11 +116,6 @@ for t_cur in t_seq:
     filename = join(anim_dir, "src", f"pt_dist_score_dynamics_{t_cur:03d}.png")
     images.append(imageio.imread(filename))
 #%%
-images_longer = []
-for t_cur in t_seq:
-    filename = join(anim_dir, "src", f"pt_dist_score_dynamics_{t_cur:03d}_longer.png")
-    images_longer.append(imageio.imread(filename))
-#%%
 imageio.mimsave(join(anim_dir, f"pt_dist_score_dynamics.gif"), images, fps=10)
 imageio.mimsave(join(anim_dir, f"pt_dist_score_dynamics_fast.gif"), images, fps=20)
 imageio.mimsave(join(anim_dir, f"pt_dist_score_dynamics_slow.gif"), images, fps=5)
@@ -135,6 +129,12 @@ imageio.mimsave(join(anim_dir, f"pt_dist_score_dynamics_slow.mp4"), images, fps=
 imageio.mimsave(join(anim_dir, f"pt_dist_score_dynamics_reverse.mp4"), images[::-1], fps=10)
 imageio.mimsave(join(anim_dir, f"pt_dist_score_dynamics_reverse_fast.mp4"), images[::-1], fps=20)
 imageio.mimsave(join(anim_dir, f"pt_dist_score_dynamics_reverse_slow.mp4"), images[::-1], fps=5)
+
+#%%
+images_longer = []
+for t_cur in t_seq:
+    filename = join(anim_dir, "src", f"pt_dist_score_dynamics_{t_cur:03d}_longer.png")
+    images_longer.append(imageio.imread(filename))
 #%% save them as mp4
 imageio.mimsave(join(anim_dir, f"pt_dist_score_dynamics_longer.mp4"), images_longer, fps=10)
 imageio.mimsave(join(anim_dir, f"pt_dist_score_dynamics_longer_fast.mp4"), images_longer, fps=20)
