@@ -79,6 +79,7 @@ alphas = pipe.scheduler.alphas
 alphas_cumprod = pipe.scheduler.alphas_cumprod
 alphacumprod_seq = alphas_cumprod[t_seq]
 alpha_seq = alphas[t_seq]
+betas = pipe.scheduler.betas
 
 #%%
 import os
