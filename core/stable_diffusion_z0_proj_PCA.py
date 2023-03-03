@@ -264,3 +264,16 @@ for prompt, dirname in prompt_dir_pair[0:]:
         # bug fixed.
         # mtg_pil = save_imgrid(img_traj, join(savedir, "proj_z0_vae_decode_new.jpg"), nrow=10, )
         # raise RuntimeError("stop here")
+#%%
+rot_pred  = pred_z0 * alphacum_traj.sqrt().view(-1, 1, 1, 1, 1) \
+    + latents_traj[0:1] * (1 - alphacum_traj).sqrt().view(-1, 1, 1, 1, 1)
+#%%
+res_rot_pred = rot_pred - latents_traj[1:]
+#%%
+rot_pred2  =  latents_traj[-1:] * alphacum_traj.sqrt().view(-1, 1, 1, 1, 1) \
+    + latents_traj[0:1] * (1 - alphacum_traj).sqrt().view(-1, 1, 1, 1, 1)
+res_rot_pred2 = rot_pred2 - latents_traj[1:]
+#%%
+res_rot_pred2.norm()**2 / latents_traj.float().norm()**2
+#%%
+res_rot_pred.norm()**2 / latents_traj.float().norm()**2
