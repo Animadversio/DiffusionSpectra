@@ -116,3 +116,5 @@ mtg = plt.imread(join(figdir, "latent_diff_topPC_imgs_vae_decode.png"))
 img_col = crop_all_from_montage(mtg, 8, imgsize=512, pad=2)
 plt.imsave(join(figdir, "latent_diff_topPC_imgs_vae_decode_seq.png"),
            make_grid_np(img_col, nrow=8))
+
+#%%  Normalize the traces for two plots
