@@ -252,12 +252,14 @@ except:
 SamplerCls = SamplerCls_dict[nameCls]
 pipe.scheduler = SamplerCls.from_config(pipe.scheduler.config)
 for seed in range(*seed_range):
+    savedir = join(saveroot, nameCls, f"{prompt_abbrv}-seed{seed}_cfg{guidance_scale:.1f}")
+    os.makedirs(savedir, exist_ok=True)
+
+    print(f"Generating{prompt} {nameCls} seed: {seed} guidance_scale: {guidance_scale} -> {savedir}")
     image, latents_traj, residue_traj, noise_uncond_traj, noise_text_traj = SD_sampler(pipe, prompt,
             num_inference_steps=tsteps, generator=torch.cuda.manual_seed(seed),
             guidance_scale=guidance_scale)
 
-    savedir = join(saveroot, nameCls, f"{prompt_abbrv}-seed{seed}_cfg{guidance_scale:.1f}")
-    os.makedirs(savedir, exist_ok=True)
     image[0].save(join(savedir, "sample.png"))
     torch.save({"latents_traj": latents_traj,
                 "residue_traj": residue_traj,
