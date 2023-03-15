@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.special import softmax
 
 class DeltaGMM:
     def __init__(self, mus, sigma):
@@ -16,7 +17,6 @@ class DeltaGMM:
             scores += (x - self.mus[i])
         return scores
 #%%
-from scipy.special import softmax
 mus = np.array([[0, 0],
                 [1, 1],
                 [2, 2]])
