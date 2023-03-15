@@ -224,9 +224,30 @@ nameCls = args.nameCls
 #%%
 saveroot = join(r"/n/scratch3/users/b/biw905/Diffusion_traj", "StableDiffusion_O2")
 import sys
-sys.path.append(r"/n/scratch3/users/b/biw905/Diffusion_traj")
-from core.utils.plot_utils import show_imgrid, save_imgrid
-from core.diffusion_traj_analysis_lib import latents_to_image, latentvecs_to_image
+sys.path.append(r"~/Github/DiffusionSpectra")
+
+try:
+    from core.utils.plot_utils import show_imgrid, save_imgrid
+    from core.diffusion_traj_analysis_lib import latents_to_image, latentvecs_to_image
+except:
+    print("Failed to import from core.utils.plot_utils, build it here")
+    from torchvision.utils import make_grid as make_grid_T
+    from torchvision.transforms import ToPILImage
+    def save_imgrid(img_tsr, path, *args, **kwargs):
+        PILimg = ToPILImage()(make_grid_T(img_tsr.cpu(), *args, **kwargs))
+        PILimg.save(path)
+        return PILimg
+
+
+    def latents_to_image(latents, pipe, batch_size=8):
+        latents = 1 / 0.18215 * latents
+        images = []
+        for i in range(0, latents.shape[0], batch_size):
+            image = pipe.vae.decode(latents[i:i + batch_size].to(pipe.vae.device).to(pipe.vae.dtype)).sample
+            image = image.float().cpu()
+            image = (image / 2 + 0.5).clamp(0, 1)
+            images.append(image)
+        return torch.cat(images, dim=0)
 #%%
 SamplerCls = SamplerCls_dict[nameCls]
 pipe.scheduler = SamplerCls.from_config(pipe.scheduler.config)
