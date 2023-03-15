@@ -201,7 +201,7 @@ SamplerCls_dict = {"LMSDiscrete": LMSDiscreteScheduler,
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--prompt", type=str, default="a ballerina lady dancing on the moon with space background")
-parser.add_argument("--prompt_abbrv", type=str, default="ballerina_dancing")
+parser.add_argument("--abbrv", type=str, default="ballerina_dancing")
 parser.add_argument("--tsteps", type=int, default=51)
 parser.add_argument("--seed_range", type=int, nargs=2, default=[0, 1000])
 parser.add_argument("--guidance_scale", type=float, default=7.5)
@@ -209,7 +209,7 @@ parser.add_argument("--sampler", type=str, default="PNDM")
 args = parser.parse_args()
 #%%
 prompt = args.prompt
-prompt_abbrv = args.prompt_abbrv
+prompt_abbrv = args.abbrv
 tsteps = args.tsteps
 seed_range = args.seed_range
 guidance_scale = args.guidance_scale
