@@ -274,6 +274,6 @@ for seed in range(*seed_range):
               alphacum_traj.sqrt().view(-1, 1, 1, 1, 1)
     img_traj = latents_to_image(pred_z0[:, 0].half().to('cuda'), pipe, batch_size=11)
     # save_imgrid(img_traj, join(savedir, "proj_z0_vae_decode.png"), nrow=10, )
-    save_imgrid(img_traj, join(savedir, "proj_z0_vae_decode_new.png"), nrow=10, )
+    save_imgrid(img_traj, join(savedir, "proj_z0_vae_decode_new.jpg"), nrow=10, )
     torch.save(pred_z0, join(savedir, "pred_z0.pt"))
 
