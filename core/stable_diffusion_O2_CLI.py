@@ -213,7 +213,7 @@ prompt_abbrv = args.prompt_abbrv
 tsteps = args.tsteps
 seed_range = args.seed_range
 guidance_scale = args.guidance_scale
-nameCls = args.nameCls
+nameCls = args.sampler
 
 # prompt = "a ballerina lady dancing on the moon with space background"
 # prompt_abbrv = prompt.replace(" ", "_")
