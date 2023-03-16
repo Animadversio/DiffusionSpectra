@@ -218,8 +218,8 @@ def f_VP_gmm_noise_vec(t, x, mus, Us, Lambdas, sigma=1E-6, noise_std=0.01, weigh
           Lambdas=Lambdas_t, weights=weights).T + noise_std * np.random.randn(*x.shape))
 
 
-def exact_general_gmm_reverse_diff(mus, Us, Lambdas, xT, weights=None, t_eval=None):
-    sol = solve_ivp(lambda t, x: f_VP_gmm_vec(t, x, mus=mus, Us=Us, Lambdas=Lambdas, sigma=1E-6, weights=weights),
+def exact_general_gmm_reverse_diff(mus, Us, Lambdas, xT, weights=None, t_eval=None, sigma=1E-6):
+    sol = solve_ivp(lambda t, x: f_VP_gmm_vec(t, x, mus=mus, Us=Us, Lambdas=Lambdas, sigma=sigma, weights=weights),
                     (1, 0), xT, method="RK45",
                     vectorized=True, t_eval=t_eval)
     return sol.y[:, -1], sol
