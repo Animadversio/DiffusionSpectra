@@ -1,6 +1,9 @@
 import numpy as np
 from scipy.stats import multivariate_normal
 from scipy.special import logsumexp, softmax
+from scipy.integrate import solve_ivp
+
+
 def _random_orthogonal_matrix(n):
     # generate random orthonormal matrix of 2d
     Q, R = np.linalg.qr(np.random.randn(n, n))
@@ -213,12 +216,57 @@ def f_VP_gmm_noise_vec(t, x, mus, sigma=1E-6, noise_std=0.01):
           Lambdas=Lambdas_t, weights=weights).T + noise_std * np.random.randn(*x.shape))
 
 
-from scipy.integrate import solve_ivp
 def exact_general_gmm_reverse_diff(mus, Us, Lambdas, xT, t_eval=None):
     sol = solve_ivp(lambda t, x: f_VP_gmm_vec(t, x, mus=mus, Us=Us, Lambdas=Lambdas, sigma=1E-6, weights=weights),
                     (1, 0), xT, method="RK45",
                     vectorized=True, t_eval=t_eval)
     return sol.y[:, -1], sol
+
+
+def demo_gaussian_mixture_diffusion(nreps=500, mus=None, Us=None, Lambdas=None):
+    ndim = 2
+    if mus is None:
+        mus = np.array([[0, 0],
+                        [1, 1],
+                        [.5, .5], ])  # [N comp, N dim]
+    if Lambdas is None:
+        Lambdas = np.array([[.8, .2],
+                        [.5, .2],
+                        [.2, .8], ])
+    if Us is None:
+        Us = np.stack([_random_orthogonal_matrix(2) for i in range(3)], axis=0)
+
+    xx, yy = np.meshgrid(np.linspace(-4, 4, 100), np.linspace(-4, 4, 100))
+    pnts = np.stack([xx.ravel(), yy.ravel()], axis=-1)
+    logprob_pnts, score_pnts = gaussian_mixture_logprob_score(pnts,
+                               mus=mus, Us=Us, Lambdas=Lambdas, weights=None)
+    sol_col = []
+    for i in range(nreps):
+        xT = np.random.randn(2)
+        x0, sol = exact_general_gmm_reverse_diff(mus, Us, Lambdas, xT, t_eval=t_eval)
+        sol_col.append(sol)
+
+    x0_col = [sol.y[:, -1] for sol in sol_col]
+    xT_col = [sol.y[:, 0] for sol in sol_col]
+    x0_col = np.stack(x0_col, axis=0)
+    xT_col = np.stack(xT_col, axis=0)
+
+    plt.figure(figsize=(8, 8))
+    plt.contour(xx, yy, logprob_pnts.reshape(xx.shape), 30)
+    for i, sol in enumerate(sol_col):
+        plt.plot(sol.y[0, :], sol.y[1, :], c="k", alpha=0.1, lw=0.75,
+                 label=None if i > 0 else "trajectories")
+
+    plt.scatter(x0_col[:, 0], x0_col[:, 1], s=40, c="b", alpha=0.3, label="final x0", marker="o")
+    plt.scatter(xT_col[:, 0], xT_col[:, 1], s=40, c="k", alpha=0.1, label="initial xT", marker="x")
+    plt.scatter(mus[:, 0], mus[:, 1], s=64, c="r", alpha=0.3, label="GMM centers")
+    plt.axis("image")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+#%%
+demo_gaussian_mixture_diffusion(nreps=500, mus=None, Us=None, Lambdas=None)
 #%%
 test_gaussian_logprob_score(10)
 test_gaussian_mixture_unimodal_case(ndim=10, npnts=10)

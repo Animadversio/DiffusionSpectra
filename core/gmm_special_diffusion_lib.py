@@ -1,6 +1,5 @@
 import numpy as np
-from scipy.special import softmax
-
+from scipy.special import softmax, logsumexp
 
 def GMM_density(mus, sigma, x):
     """
@@ -18,6 +17,18 @@ def GMM_density(mus, sigma, x):
     prob = np.exp(- dist2 / sigma2 / 2, )  # [x batch, mu]
     prob_all = np.sum(prob, axis=1) / Nbranch / normfactor  # [x batch,]
     return prob_all
+
+
+def GMM_logprob(mus, sigma, x):
+    Nbranch = mus.shape[0]
+    Ndim = mus.shape[1]
+    sigma2 = sigma ** 2
+    normfactor = np.sqrt((2 * np.pi * sigma) ** Ndim)
+    res = x[:, None, :] - mus[None, :, :]  # [x batch, mu, space dim]
+    dist2 = np.sum(res ** 2, axis=-1)  # [x batch, mu]
+    logprob = logsumexp(- dist2 / sigma2 / 2, axis=1)
+    logprob -= np.log(Nbranch) + np.log(normfactor)
+    return logprob
 
 
 def GMM_scores(mus, sigma, x):
@@ -87,4 +98,44 @@ def exact_delta_gmm_reverse_diff(mus, sigma, xT, t_eval=None):
     sol = solve_ivp(lambda t, x: f_VP_vec(t, x, mus, sigma=sigma),
                     (1, 0), xT, method="RK45",
                     vectorized=True, t_eval=t_eval)
-    return sol.y[:, -1]
+    return sol.y[:, -1], sol
+
+
+def demo_delta_gmm_diffusion(nreps=500, mus=None, sigma=1E-5):
+    import matplotlib.pyplot as plt
+    if mus is None:
+        mus = np.array([[0, 0],
+                        [1, 1],
+                        [2, 2]])
+
+    xx, yy = np.meshgrid(np.linspace(-4, 4, 100), np.linspace(-4, 4, 100))
+    pnts = np.stack([xx, yy], axis=-1)
+    pnts = pnts.reshape(-1, 2)
+    logprob = GMM_logprob(mus, sigma, pnts)
+
+    sol_col = []
+    for i in range(nreps):
+        xT = np.random.randn(2)
+        x0, sol = exact_delta_gmm_reverse_diff(mus, sigma, xT, t_eval=None)
+        sol_col.append(sol)
+
+    x0_col = [sol.y[:, -1] for sol in sol_col]
+    xT_col = [sol.y[:, 0] for sol in sol_col]
+    x0_col = np.stack(x0_col, axis=0)
+    xT_col = np.stack(xT_col, axis=0)
+    plt.figure(figsize=(8, 8))
+    plt.contour(xx, yy, logprob.reshape(xx.shape), 50, )
+    for i, sol in enumerate(sol_col):
+        plt.plot(sol.y[0, :], sol.y[1, :], c="k", alpha=0.1, lw=0.75,
+                 label=None if i > 0 else "trajectories")
+    plt.scatter(x0_col[:, 0], x0_col[:, 1], s=40, c="b", alpha=0.3, label="final x0")
+    plt.scatter(xT_col[:, 0], xT_col[:, 1], s=40, c="k", alpha=0.1, label="initial xT")
+    plt.scatter(mus[:, 0], mus[:, 1], s=64, c="r", alpha=0.3, label="GMM centers")
+    plt.axis("image")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+
+if __name__ == "__main__":
+    demo_delta_gmm_diffusion(nreps=500)
