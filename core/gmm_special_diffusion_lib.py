@@ -3,6 +3,12 @@ from scipy.special import softmax
 
 
 def GMM_density(mus, sigma, x):
+    """
+    :param mus: ndarray of mu, shape [Nbranch, Ndim]
+    :param sigma: float, std of an isotropic Gaussian
+    :param x: ndarray of x, shape [Nbatch, Ndim]
+    :return: ndarray of p(x), shape [Nbatch,]
+    """
     Nbranch = mus.shape[0]
     Ndim = mus.shape[1]
     sigma2 = sigma**2
@@ -15,6 +21,12 @@ def GMM_density(mus, sigma, x):
 
 
 def GMM_scores(mus, sigma, x):
+    """
+    :param mus: ndarray of mu, shape [Nbranch, Ndim]
+    :param sigma: float, std of an isotropic Gaussian
+    :param x: ndarray of x, shape [Nbatch, Ndim]
+    :return: ndarray of scores, shape [Nbatch, Ndim]
+    """
     # for both input x and mus, the shape is [batch, space dim]
     sigma2 = sigma**2
     res = x[:, None, :] - mus[None, :, :]  # [x batch, mu, space dim]
