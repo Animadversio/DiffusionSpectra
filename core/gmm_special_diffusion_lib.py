@@ -123,18 +123,19 @@ def demo_delta_gmm_diffusion(nreps=500, mus=None, sigma=1E-5):
     xT_col = [sol.y[:, 0] for sol in sol_col]
     x0_col = np.stack(x0_col, axis=0)
     xT_col = np.stack(xT_col, axis=0)
-    plt.figure(figsize=(8, 8))
+    figh = plt.figure(figsize=(8, 8))
     plt.contour(xx, yy, logprob.reshape(xx.shape), 50, )
     for i, sol in enumerate(sol_col):
         plt.plot(sol.y[0, :], sol.y[1, :], c="k", alpha=0.1, lw=0.75,
                  label=None if i > 0 else "trajectories")
-    plt.scatter(x0_col[:, 0], x0_col[:, 1], s=40, c="b", alpha=0.3, label="final x0")
-    plt.scatter(xT_col[:, 0], xT_col[:, 1], s=40, c="k", alpha=0.1, label="initial xT")
+    plt.scatter(x0_col[:, 0], x0_col[:, 1], s=40, c="b", alpha=0.3, label="final x0", marker="o")
+    plt.scatter(xT_col[:, 0], xT_col[:, 1], s=40, c="k", alpha=0.1, label="initial xT", marker="x")
     plt.scatter(mus[:, 0], mus[:, 1], s=64, c="r", alpha=0.3, label="GMM centers")
     plt.axis("image")
     plt.legend()
     plt.tight_layout()
     plt.show()
+    return figh
 
 
 if __name__ == "__main__":

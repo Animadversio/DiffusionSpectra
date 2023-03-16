@@ -1,36 +1,16 @@
 import numpy as np
 from scipy.special import softmax
+from core.gmm_special_diffusion_lib import GMM_density, GMM_scores, beta, alpha, \
+    GMM_logprob, demo_delta_gmm_diffusion, exact_delta_gmm_reverse_diff, \
+    f_VP_vec, f_VP_noise_vec, score_t_vec
 
-class DeltaGMM:
-    def __init__(self, mus, sigma):
-        self.mus = np.array(mus)
-        self.sigma = sigma
-        self.n_component = len(self.mus)
-        self.dim = self.mus.shape[1]
-
-    def score(self, x):
-        """
-        Compute the score $\nabla_x \log p(x)$ for the given $x$.
-        """
-        scores = np.zeros_like(x)
-        for i in range(self.n_component):
-            scores += (x - self.mus[i])
-        return scores
-#%%
-mus = np.array([[0, 0],
-                [1, 1],
-                [2, 2]])
-
-x = np.array([[0.5, 0.5]])
-sigma = 1
-sigma2 = sigma**2
-res = x[:, None, :] - mus[None, :, :]  # [x batch, mu, space dim]
-dist2 = np.sum(res ** 2, axis=-1)  # [x batch, mu]
-participance = softmax(- dist2 / sigma2 / 2, axis=1)  # [x batch, mu]
-scores = np.einsum("ij,ijk->ik", participance, res)   # [x batch, space dim]
-
-#%%
 def GMM_density(mus, sigma, x):
+    """
+    :param mus: ndarray of mu, shape [Nbranch, Ndim]
+    :param sigma: float, std of an isotropic Gaussian
+    :param x: ndarray of x, shape [Nbatch, Ndim]
+    :return: ndarray of p(x), shape [Nbatch,]
+    """
     Nbranch = mus.shape[0]
     Ndim = mus.shape[1]
     sigma2 = sigma**2
@@ -38,17 +18,46 @@ def GMM_density(mus, sigma, x):
     res = x[:, None, :] - mus[None, :, :]  # [x batch, mu, space dim]
     dist2 = np.sum(res ** 2, axis=-1)  # [x batch, mu]
     prob = np.exp(- dist2 / sigma2 / 2, )  # [x batch, mu]
-    prob_all = np.sum(prob, axis=1) / Nbranch / normfactor # [x batch,]
+    prob_all = np.sum(prob, axis=1) / Nbranch / normfactor  # [x batch,]
     return prob_all
 
 
-def GMM_scores(mus, sigma_sq, x):
-    # sigma2 = sigma**2
+def GMM_logprob(mus, sigma, x):
+    Nbranch = mus.shape[0]
+    Ndim = mus.shape[1]
+    sigma2 = sigma ** 2
+    normfactor = np.sqrt((2 * np.pi * sigma) ** Ndim)
     res = x[:, None, :] - mus[None, :, :]  # [x batch, mu, space dim]
     dist2 = np.sum(res ** 2, axis=-1)  # [x batch, mu]
-    participance = softmax(- dist2 / sigma_sq / 2, axis=1)  # [x batch, mu]
-    scores = - np.einsum("ij,ijk->ik", participance, res) / sigma_sq   # [x batch, space dim]
+    logprob = logsumexp(- dist2 / sigma2 / 2, axis=1)
+    logprob -= np.log(Nbranch) + np.log(normfactor)
+    return logprob
+
+
+def GMM_scores(mus, sigma, x):
+    """
+    :param mus: ndarray of mu, shape [Nbranch, Ndim]
+    :param sigma: float, std of an isotropic Gaussian
+    :param x: ndarray of x, shape [Nbatch, Ndim]
+    :return: ndarray of scores, shape [Nbatch, Ndim]
+    """
+    # for both input x and mus, the shape is [batch, space dim]
+    sigma2 = sigma**2
+    res = x[:, None, :] - mus[None, :, :]  # [x batch, mu, space dim]
+    dist2 = np.sum(res ** 2, axis=-1)  # [x batch, mu]
+    participance = softmax(- dist2 / sigma2 / 2, axis=1)  # [x batch, mu]
+    scores = - np.einsum("ij,ijk->ik", participance, res) / sigma2   # [x batch, space dim]
     return scores
+
+
+def beta(t):
+    return (0.02 * t + 0.0001 * (1 - t)) * 1000
+
+
+def alpha(t):
+    # return np.exp(- 1000 * (0.01 * t**2 + 0.0001 * t))
+    return np.exp(- 10 * t**2 - 0.1 * t) * 0.9999
+
 #%%
 mus = np.random.randn(500, 2)
 sigma = 0.7
@@ -126,10 +135,7 @@ for i in range(500):
     sol = solve_ivp(f_VP_vec, (1, 0), xT, method="RK45",
                     t_eval=np.linspace(1, 0, 1000), vectorized=True)
     sol_col.append(sol)
-# sol = solve_ivp(f_VP_vec, (1, 0), x0, method="RK45",
-#                 t_eval=np.linspace(1, 0, 1000),
-#                 vectorized=True)
-#%
+
 x0_col = [sol.y[:, -1] for sol in sol_col]
 xT_col = [sol.y[:, 0] for sol in sol_col]
 x0_col = np.stack(x0_col, axis=0)
@@ -155,6 +161,7 @@ plt.axis("image")
 plt.legend()
 plt.tight_layout()
 plt.show()
+
 #%%
 from diffusers import DDIMPipeline, DDPMPipeline
 # model_id = "google/ddpm-cifar10-32"
@@ -182,3 +189,15 @@ plt.plot(t_ticks, betas, alpha=0.6, label="DDPM")
 plt.legend()
 plt.show()
 #%%
+#%% Dev zone for the GMM scores
+mus = np.array([[0, 0],
+                [1, 1],
+                [2, 2]])
+
+x = np.array([[0.5, 0.5]])
+sigma = 1
+sigma2 = sigma**2
+res = x[:, None, :] - mus[None, :, :]  # [x batch, mu, space dim]
+dist2 = np.sum(res ** 2, axis=-1)  # [x batch, mu]
+participance = softmax(- dist2 / sigma2 / 2, axis=1)  # [x batch, mu]
+scores = np.einsum("ij,ijk->ik", participance, res)   # [x batch, space dim]

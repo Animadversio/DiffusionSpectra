@@ -1,6 +1,6 @@
 """Playground for Gaussian mixture model diffusion dynamics
 wit general covariance matrix.
-Reverse diffusion 
+Reverse diffusion
 """
 import numpy as np
 import matplotlib.pyplot as plt
@@ -10,11 +10,13 @@ from core.gmm_general_diffusion_lib import exact_general_gmm_reverse_diff, \
 #%%
 mus = np.array([[0, 0],
                [1, 1],
-               [.5, .5], ]) # [N comp, N dim]
+               [.5, .5], ])  # [N comp, N dim]
 Lambdas = np.array([[.8, .2],
                    [.5, .2],
                    [.2, .8],]) # [N comp, N dim]
 Us = np.stack([_random_orthogonal_matrix(2) for i in range(3)], axis=0)
+#%%
+demo_gaussian_mixture_diffusion(500, mus, Us, Lambdas, )
 #%%
 xx, yy = np.meshgrid(np.linspace(-4, 4, 100), np.linspace(-4, 4, 100))
 pnts = np.stack([xx.ravel(), yy.ravel()], axis=-1)
@@ -31,12 +33,7 @@ plt.axis("image")
 plt.tight_layout()
 plt.show()
 #%%
-demo_gaussian_mixture_diffusion(500, mus, Us, Lambdas, )
-
-#%%
-
-
-#%%
+#%% Visualize the reverse diffusion of a single point
 xT = np.random.randn(2)  # np.array([1.5, 0.5])
 t_eval = np.linspace(1, 0, 100)
 x0, sol = exact_general_gmm_reverse_diff(mus, Us, Lambdas, xT, t_eval=t_eval)
@@ -70,8 +67,6 @@ plt.axis("image")
 plt.legend()
 plt.tight_layout()
 plt.show()
-#
-
 #%% test unimodal Gaussian
 # ndim = 2
 # x = np.random.randn(10, ndim)  # [N batch, N dim]

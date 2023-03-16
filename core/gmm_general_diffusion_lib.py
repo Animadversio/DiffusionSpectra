@@ -258,7 +258,7 @@ def demo_gaussian_mixture_diffusion(nreps=500, mus=None, Us=None, Lambdas=None, 
     x0_col = np.stack(x0_col, axis=0)
     xT_col = np.stack(xT_col, axis=0)
 
-    plt.figure(figsize=(8, 8))
+    figh = plt.figure(figsize=(8, 8))
     plt.contour(xx, yy, logprob_pnts.reshape(xx.shape), 30)
     for i, sol in enumerate(sol_col):
         plt.plot(sol.y[0, :], sol.y[1, :], c="k", alpha=0.1, lw=0.75,
@@ -271,6 +271,7 @@ def demo_gaussian_mixture_diffusion(nreps=500, mus=None, Us=None, Lambdas=None, 
     plt.axis("image")
     plt.tight_layout()
     plt.show()
+    return figh
 
 
 if __name__ == "__main__":
