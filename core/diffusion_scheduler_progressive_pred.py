@@ -18,6 +18,7 @@ from core.diffusion_geometry_lib import proj2subspace, proj2orthospace, subspace
     trajectory_geometry_pipeline, latent_PCA_analysis, latent_diff_PCA_analysis, diff_cosine_mat_analysis, PCA_data_visualize
 from core.diffusion_traj_analysis_lib import compute_save_diff_imgs_diff, plot_diff_matrix
 #%%
+from diffusers import UNet2DModel
 # model_id = "fusing/ddim-celeba-hq"
 
 # model_id = "google/ddpm-cat-256"
@@ -29,12 +30,13 @@ from core.diffusion_traj_analysis_lib import compute_save_diff_imgs_diff, plot_d
 # model_id = "google/ddpm-ema-celebahq-256"
 # model_id = "google/ddpm-celebahq-256" # most popular
 model_id = "google/ddpm-cifar10-32"
+model_id = "lowlevelware/512x512_diffusion_unconditional_ImageNet"
 # model_id = "dimpo/ddpm-mnist"  # most popular
 model_id_short = model_id.split("/")[-1]
 # load model and scheduler
 pipe = DDIMPipeline.from_pretrained(model_id)  # you can replace DDPMPipeline with DDIMPipeline or PNDMPipeline for faster inference
 pipe.unet.requires_grad_(False).eval().to("cuda")#.half()
-
+UNet2DModel.from_pretrained("lowlevelware/512x512_diffusion_unconditional_ImageNet")
 #%%
 import matplotlib
 matplotlib.use('Agg')
