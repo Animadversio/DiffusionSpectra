@@ -86,12 +86,13 @@ from core.utils.montage_utils import make_grid_np
 #%% Unconditional generation using the exact delta function GMM, GMM, and single Gaussian
 outdir = r"F:\insilico_exps\Diffusion_traj\mnist_uncond_gmm_exact"
 os.makedirs(outdir, exist_ok=True)
+t_eval = np.linspace(1, 0, 51)
 for RNDseed in trange(100):
     np.random.seed(RNDseed)
     xT = np.random.randn(ndim)
-    x0_uni, sol_uni = exact_general_gmm_reverse_diff(mu_all[None], U_all[None], Lambda_all[None], xT, sigma=1E-4)
-    x0_gmm, sol_gmm = exact_general_gmm_reverse_diff(mu_cls, U_cls, Lambda_cls, xT, sigma=1E-4)
-    x0_exact, sol_exact = exact_delta_gmm_reverse_diff(xarr_all, sigma=1E-4, xT=xT,)
+    x0_uni, sol_uni = exact_general_gmm_reverse_diff(mu_all[None], U_all[None], Lambda_all[None], xT, sigma=1E-4, t_eval=t_eval)
+    x0_gmm, sol_gmm = exact_general_gmm_reverse_diff(mu_cls, U_cls, Lambda_cls, xT, sigma=1E-4, t_eval=t_eval)
+    x0_exact, sol_exact = exact_delta_gmm_reverse_diff(xarr_all, sigma=1E-4, xT=xT, t_eval=t_eval)
     x0img_uni = x0_uni.reshape(imgshape).transpose((1, 2, 0)).clip(0, 1)
     x0img_gmm = x0_gmm.reshape(imgshape).transpose((1, 2, 0)).clip(0, 1)
     x0img_exact = x0_exact.reshape(imgshape).transpose((1, 2, 0)).clip(0, 1)
@@ -177,7 +178,6 @@ dataset = CIFAR10(r'E:\Datasets', download=True)
 # load whole MNIST into a single tensor
 xtsr = torch.stack([ToTensor()(img) for img, _ in dataset], dim=0)
 ytsr = torch.stack([torch.tensor(label) for _, label in dataset], dim=0)
-#%%
 imgshape = xtsr.shape[1:]
 ndim = np.prod(imgshape)
 #%%
@@ -198,20 +198,48 @@ plt.show()
 #%%
 from os.path import join
 import pickle as pkl
-outdir = r"F:\insilico_exps\Diffusion_traj\cifar10_gmm_exact"
-for class_id in trange(10):
+outdir = r"F:\insilico_exps\Diffusion_traj\cifar_cond_gmm_exact"
+os.makedirs(outdir, exist_ok=True)
+t_eval = np.linspace(1, 0, 51)
+for class_id in trange(9, 10):
     mus = xtsr[ytsr == class_id, :, :, :].flatten(1).numpy()
+    mu_sing, cov_sing, Lambda_sing, U_sing = mean_cov_from_xarr(mus)
     # set manual seed
     for RNDseed in trange(100):
         np.random.seed(RNDseed)
         xT = np.random.randn(ndim)
-        sol = solve_ivp(lambda t, x: f_VP_vec(t, x, mus, sigma=1E-5),
-                        (1, 0), xT, method="RK45",
-                        vectorized=True, t_eval=np.linspace(1, 0, 51))
+        x0_gauss, sol_gauss = exact_general_gmm_reverse_diff(mu_sing[None], U_sing[None], Lambda_sing[None], xT, sigma=1E-4, t_eval=t_eval)
+        x0_exact, sol_exact = exact_delta_gmm_reverse_diff(mus, sigma=1E-4, xT=xT, t_eval=t_eval)
+        x0img_gauss = x0_gauss.reshape(imgshape).transpose((1, 2, 0)).clip(0, 1)
+        x0img_exact = x0_exact.reshape(imgshape).transpose((1, 2, 0)).clip(0, 1)
+        plt.imsave(join(outdir, f"class{class_id}_RND{RNDseed:03d}_gauss.png"), x0img_gauss)
+        plt.imsave(join(outdir, f"class{class_id}_RND{RNDseed:03d}_exact.png"), x0img_exact)
+        plt.imsave(join(outdir, f"class{class_id}_RND{RNDseed:03d}_cmb.png"),
+                   make_grid_np([x0img_gauss, x0img_exact], nrow=2, padding=4))
+        pkl.dump({"x0_gauss": x0_gauss, "x0_exact": x0_exact,
+                  "sol_gauss": sol_gauss, "sol_exact": sol_exact},
+                 open(join(outdir, f"class{class_id}_RND{RNDseed:03d}_all.pkl"), "wb"))
 
-        x0 = sol.y[:, -1]  # [space dim, traj T]
-        x0_img = x0.clip(0, 1).reshape(imgshape).transpose((1, 2, 0))
-        plt.imsave(join(outdir, f"{class_id}_{RNDseed}.png"), x0_img)
-        pkl.dump(sol, open(join(outdir, f"{class_id}_{RNDseed}_sol.pkl"), "wb"))
-
+#%%
+outdir = r"F:\insilico_exps\Diffusion_traj\cifar_uncond_gmm_exact"
+os.makedirs(outdir, exist_ok=True)
+t_eval = np.linspace(1, 0, 51)
+for RNDseed in trange(100):
+    np.random.seed(RNDseed)
+    xT = np.random.randn(ndim)
+    x0_uni, sol_uni = exact_general_gmm_reverse_diff(mu_all[None], U_all[None], Lambda_all[None], xT, sigma=1E-4, t_eval=t_eval)
+    x0_gmm, sol_gmm = exact_general_gmm_reverse_diff(mu_cls, U_cls, Lambda_cls, xT, sigma=1E-4, t_eval=t_eval)
+    x0_exact, sol_exact = exact_delta_gmm_reverse_diff(xarr_all, sigma=1E-4, xT=xT, t_eval=t_eval)
+    x0img_uni = x0_uni.reshape(imgshape).transpose((1, 2, 0)).clip(0, 1)
+    x0img_gmm = x0_gmm.reshape(imgshape).transpose((1, 2, 0)).clip(0, 1)
+    x0img_exact = x0_exact.reshape(imgshape).transpose((1, 2, 0)).clip(0, 1)
+    # save
+    plt.imsave(join(outdir, f"uncond_RND{RNDseed:03d}_unigauss.png"), x0img_uni)
+    plt.imsave(join(outdir, f"uncond_RND{RNDseed:03d}_gmm.png"), x0img_gmm)
+    plt.imsave(join(outdir, f"uncond_RND{RNDseed:03d}_exact.png"), x0img_exact)
+    plt.imsave(join(outdir, f"uncond_RND{RNDseed:03d}_cmb.png"),
+               make_grid_np([x0img_uni, x0img_gmm, x0img_exact], nrow=3, padding=4))
+    pkl.dump({"x0_uni": x0_uni, "x0_gmm": x0_gmm, "x0_exact": x0_exact,
+              "sol_uni": sol_uni, "sol_gmm": sol_gmm, "sol_exact": sol_exact},
+             open(join(outdir, f"uncond_RND{RNDseed:03d}_all.pkl"), "wb"))
 
