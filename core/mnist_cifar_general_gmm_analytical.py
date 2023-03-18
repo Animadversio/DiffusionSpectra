@@ -196,6 +196,30 @@ plt.figure()
 plt.imshow(x0_img, )
 plt.show()
 #%%
+mu_cls = []
+cov_cls = []
+Lambda_cls = []
+U_cls = []
+weights = []
+for label in range(10):
+    xarr = xtsr[ytsr == label, :, :].flatten(1).numpy()
+    mu, cov, Lambda, U = mean_cov_from_xarr(xarr)
+    assert np.allclose(cov, U @ np.diag(Lambda) @ U.T)
+    mu_cls.append(mu)
+    cov_cls.append(cov)
+    Lambda_cls.append(Lambda)
+    U_cls.append(U)
+    weights.append(xarr.shape[0])
+
+mu_cls = np.stack(mu_cls, axis=0)
+cov_cls = np.stack(cov_cls, axis=0)
+Lambda_cls = np.stack(Lambda_cls, axis=0)
+U_cls = np.stack(U_cls, axis=0)
+# single Gaussian approximation
+xarr_all = xtsr.flatten(1).numpy()
+mu_all, cov_all, Lambda_all, U_all = mean_cov_from_xarr(xarr_all)
+
+#%%
 from os.path import join
 import pickle as pkl
 outdir = r"F:\insilico_exps\Diffusion_traj\cifar_cond_gmm_exact"
