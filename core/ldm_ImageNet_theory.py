@@ -1,0 +1,214 @@
+import sys
+import torch
+import matplotlib.pyplot as plt
+import numpy as np
+from tqdm import tqdm
+from os.path import join
+from core.utils.plot_utils import saveallforms, save_imgrid, to_imgrid
+from core.ODE_analytical_lib import *
+
+#%%
+
+sys.path.append("/home/binxu/Github/latent-diffusion")
+sys.path.append('/home/binxu/Github/taming-transformers')
+# from taming.models import vqgan
+sys.path.append("/home/binxu/Github/latent-diffusion")
+#%%
+#@title loading utils
+import os
+import torch
+from omegaconf import OmegaConf
+from os.path import join
+from ldm.util import instantiate_from_config
+if os.environ["USER"] == "binxu":
+    ldm_root = "/home/binxu/Github/latent-diffusion"
+elif os.environ["USER"] == "biw905":
+    ldm_root = "/home/biw905/Github/latent-diffusion"
+
+
+def load_model_from_config(config, ckpt):
+    print(f"Loading model from {ckpt}")
+    pl_sd = torch.load(ckpt)#, map_location="cpu")
+    sd = pl_sd["state_dict"]
+    model = instantiate_from_config(config.model)
+    m, u = model.load_state_dict(sd, strict=False)
+    model.cuda()
+    model.eval()
+    return model
+
+
+def get_model():
+    config = OmegaConf.load(join(ldm_root,"configs/latent-diffusion/cin256-v2.yaml"))
+    model = load_model_from_config(config, join(ldm_root,"models/ldm/cin256-v2/model.ckpt"))
+    return model
+
+
+@torch.no_grad()
+def decode_batch(model, zs, batch_size=5):
+    with model.ema_scope():
+        x = []
+        for i in range(0, zs.shape[0], batch_size):
+            x.append(model.decode_first_stage(zs[i:i + batch_size].to(model.device)).cpu())
+        x = torch.cat(x, dim=0)
+        x = torch.clamp((x + 1.0) / 2.0, min=0.0, max=1.0)
+    return x
+
+
+@torch.no_grad()
+def decode_batchvec(model, zs, batch_size=5, latent_shape=(3, 64, 64)):
+    with model.ema_scope():
+        x = []
+        for i in range(0, zs.shape[0], batch_size):
+            x.append(model.decode_first_stage(zs[i:i + batch_size].\
+                      reshape(-1, *latent_shape).to(model.device)).cpu())
+        x = torch.cat(x, dim=0)
+        x = torch.clamp((x + 1.0) / 2.0, min=0.0, max=1.0)
+    return x
+#%%
+from ldm.models.diffusion.ddim import DDIMSampler
+
+model = get_model()
+sampler = DDIMSampler(model)
+#%%
+PCAdir = r"/home/binxu/DL_Projects/ldm-imagenet/latents_save"
+traj_dir = r"/home/binxu/insilico_exps/Diffusion_traj/ldm_imagenet/DDIM"
+outdir = r"/home/binxu/insilico_exps/Diffusion_traj/ldm_imagenet_analytical"
+saveroot = r"/home/binxu/insilico_exps/Diffusion_traj/ldm_imagenet"
+os.makedirs(outdir, exist_ok=True)
+#%%
+# PCAdir = r"F:\insilico_exps\Diffusion_traj\ldm-imagenet-pca\latents_save"
+# traj_dir = r"F:\insilico_exps\Diffusion_traj\ldm_imagenet\DDIM"
+# outdir = r"F:\insilico_exps\Diffusion_traj\ldm_imagenet_analytical"
+# saveroot = r"F:\insilico_exps\Diffusion_traj\ldm_imagenet"
+# os.makedirs(outdir, exist_ok=True)
+#%%
+ddim_ab = torch.load(join(saveroot, "ddim_alphas_betas.pt"))
+alphas_cumprod = ddim_ab["alphas_cumprod"]
+alphas_cumprod_prev = ddim_ab["alphas_cumprod_prev"]
+betas = ddim_ab["betas"]
+#%%
+# class_id = 1
+for class_id in range(10, 100):
+    PCA_data = torch.load(join(PCAdir, f"class{class_id}_z_pca.pt"))
+    U = PCA_data['U']
+    V = PCA_data['V']
+    S = PCA_data['S']
+    imgmean = PCA_data['mean']
+    cov_eigs = S**2 / (U.shape[0] - 1)
+    #%%
+    traj_collection = []
+    for RNDseed in tqdm(range(10)):
+        #%%
+        traj_data = torch.load(join(traj_dir, f"class{class_id:03d}_seed{RNDseed:03d}", "state_traj.pt"))
+        z_traj = traj_data['z_traj'].cpu()
+        pred_z0_traj = traj_data['pred_z0_traj'].cpu()
+        t_traj = traj_data['t_traj']
+        idx_traj = 1000 - t_traj - 1
+        # raise NotImplementedError
+        # pred_x0_imgs = (pred_x0 + 1) / 2
+        # Analytical prediction
+        alphacum_traj = alphas_cumprod[idx_traj].cpu()
+
+        zT_vec = z_traj[0:1].flatten(1)
+        mu_vec = imgmean[None, :] #.flatten(1) #  * 2 - 1
+        # predict xt
+        print("Solving ODE for xt...")
+        xt_traj, xt0_residue, scaling_coef_ortho, xttraj_coef = \
+            xt_ode_solution(zT_vec, mu_vec, V, cov_eigs, alphacum_traj)
+        # predict x0hat
+        print("Solving ODE for x0hat...")
+        x0hatxt_traj, xttraj_coef, xttraj_coef_modulated = x0hat_ode_solution( \
+            zT_vec, mu_vec, V, cov_eigs, alphacum_traj)
+        # save trajectoryimages
+        # print("Decoding images...")
+        # imgtraj_xt_ddim = decode_batchvec(model, z_traj)
+        # imgtraj_x0hat_ddim = decode_batchvec(model, pred_z0_traj)
+        # imgtraj_xt_theory = decode_batchvec(model, xt_traj)
+        # imgtraj_x0hat_theory = decode_batchvec(model, x0hatxt_traj)
+        # print("Saving images...")
+        # save_imgrid(imgtraj_xt_theory, join(outdir, f"class{class_id:03d}_seed{RNDseed:03d}_xt_theory.png"))
+        # save_imgrid(imgtraj_x0hat_theory, join(outdir, f"class{class_id:03d}_seed{RNDseed:03d}_x0hat_theory.png"))
+        # save_imgrid(imgtraj_xt_ddim, join(outdir, f"class{class_id:03d}_seed{RNDseed:03d}_xt_empir.png"))
+        # save_imgrid(imgtraj_x0hat_ddim, join(outdir, f"class{class_id:03d}_seed{RNDseed:03d}_x0hat_empir.png"))
+        # # if seed == 400:
+        # #     break
+        # plt.imshow(to_imgrid(imgtraj_x0hat_theory))
+        # plt.axis("off")
+        # plt.show()
+        # plt.imshow(to_imgrid(imgtraj_x0hat_ddim))
+        # plt.axis("off")
+        # plt.show()
+        print("Plotting image differnece...")
+        xt_pred_mse = ((z_traj[1:].flatten(1) - xt_traj)**2).mean(1)
+        x0hat_pred_mse = ((pred_z0_traj[1:].flatten(1) - x0hatxt_traj)**2).mean(1)
+        plt.figure()
+        plt.plot(xt_pred_mse)
+        # plt.plot((sample_traj[1:].flatten(1) - xt_traj).norm(dim=1))
+        plt.ylabel("MSE of deviation")
+        plt.xlabel("timestep")
+        plt.title("L2 norm of deviation between empirical and analytical prediction of xt")
+        saveallforms(outdir, f"class{class_id:03d}_seed{RNDseed:03d}_xt_deviation_L2")
+        plt.show()
+        plt.figure()
+        plt.plot(x0hat_pred_mse)
+        # plt.plot((proj_x0_traj.flatten(1) - x0hatxt_traj).norm(dim=1))
+        plt.ylabel("MSE of deviation")
+        plt.xlabel("timestep")
+        plt.title("L2 norm of deviation between empirical and analytical prediction of x0hat")
+        saveallforms(outdir, f"class{class_id:03d}_seed{RNDseed:03d}_x0hat_deviation_L2")
+        plt.show()
+        torch.save({"xt_traj": xt_traj,
+                    "x0hatxt_traj": x0hatxt_traj,
+                    "xttraj_coef": xttraj_coef, "xt0_residue": xt0_residue,
+                    "xttraj_coef_modulated": xttraj_coef_modulated,
+                    "scaling_coef_ortho": scaling_coef_ortho,
+                    "xt_pred_mse": xt_pred_mse,
+                    "x0hat_pred_mse": x0hat_pred_mse,
+                    }, join(outdir, f"class{class_id:03d}_seed{RNDseed:03d}_theory_coef.pt"))
+        # raise NotImplementedError
+#%%
+class_id = 0
+PCA_data = torch.load(join(PCAdir, f"class{class_id}_z_pca.pt"))
+U = PCA_data['U']
+V = PCA_data['V']
+S = PCA_data['S']
+imgmean = PCA_data['mean']
+cov_eigs = S**2 / (U.shape[0] - 1)
+#%%
+class_id = 1
+PCA_data = torch.load(join(PCAdir, f"class{class_id}_z_pca.pt"))
+U2 = PCA_data['U']
+V2 = PCA_data['V']
+S2 = PCA_data['S']
+imgmean2 = PCA_data['mean']
+cov_eigs2 = S2**2 / (U2.shape[0] - 1)
+#%%
+plt.figure()
+plt.semilogy(xt_pred_mse)
+# plt.plot((sample_traj[1:].flatten(1) - xt_traj).norm(dim=1))
+plt.ylabel("MSE of deviation")
+plt.xlabel("timestep")
+plt.title("L2 norm of deviation between empirical and analytical prediction of xt")
+# saveallforms(outdir, f"class{class_id:03d}_seed{RNDseed:03d}_xt_deviation_L2")
+plt.show()
+#%%
+plt.figure()
+plt.semilogy(x0hat_pred_mse)
+# plt.plot((proj_x0_traj.flatten(1) - x0hatxt_traj).norm(dim=1))
+plt.ylabel("MSE of deviation")
+plt.xlabel("timestep")
+plt.title("L2 norm of deviation between empirical and analytical prediction of x0hat")
+# saveallforms(outdir, f"class{class_id:03d}_seed{RNDseed:03d}_x0hat_deviation_L2")
+plt.show()
+#%%
+alphacum_prev_traj = alphas_cumprod_prev[idx_traj].cpu()
+x0hatxt_traj, xttraj_coef, xttraj_coef_modulated = x0hat_ode_solution( \
+        zT_vec, mu_vec, V, cov_eigs, alphacum_prev_traj)
+imgtraj_x0hat_theory = decode_batchvec(model, x0hatxt_traj)
+# plt.imshow(to_imgrid(imgtraj_x0hat_ddim))
+plt.imshow(to_imgrid(imgtraj_x0hat_theory))
+plt.axis("off")
+plt.show()
+plt.imshow(to_imgrid(imgtraj_x0hat_ddim))
+plt.axis("off")
+plt.show()
