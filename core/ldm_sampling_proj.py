@@ -1,9 +1,9 @@
-!git clone https://github.com/CompVis/latent-diffusion.git
-!git clone https://github.com/CompVis/taming-transformers
-!pip install -e ./taming-transformers
-!pip install omegaconf>=2.0.0 pytorch-lightning>=1.0.8 torch-fidelity einops
-!pip install pytorch-lightning==1.7.7
-!pip install clip kornia
+# !git clone https://github.com/CompVis/latent-diffusion.git
+# !git clone https://github.com/CompVis/taming-transformers
+# !pip install -e ./taming-transformers
+# !pip install omegaconf>=2.0.0 pytorch-lightning>=1.0.8 torch-fidelity einops
+# !pip install pytorch-lightning==1.7.7
+# !pip install clip kornia
 #%%
 import sys
 sys.path.append("/home/binxu/Github/latent-diffusion")
@@ -15,7 +15,7 @@ sys.path.append('/home/binxu/Github/taming-transformers')
 # !mkdir -p models/ldm/cin256-v2/
 # !wget -O models/ldm/cin256-v2/model.ckpt https://ommer-lab.com/files/latent-diffusion/nitro/cin/model.ckpt
 #%%
-%cd /home/binxu/Github/latent-diffusion
+# %cd /home/binxu/Github/latent-diffusion
 
 #%%
 #@title loading utils
