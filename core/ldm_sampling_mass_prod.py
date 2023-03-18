@@ -130,7 +130,13 @@ with torch.no_grad():
 
 
 
+#%%
 
+#%%
+torch.save({"alphas_cumprod": model.alphas_cumprod,
+            "alphas_cumprod_prev": model.alphas_cumprod_prev,
+            "betas": model.betas},
+           join(saveroot, "ddim_alphas_betas.pt"))
 
 #%%
 # display as grid
