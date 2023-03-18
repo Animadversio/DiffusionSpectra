@@ -41,6 +41,17 @@ def get_model():
     config = OmegaConf.load(join(ldm_root,"configs/latent-diffusion/cin256-v2.yaml"))
     model = load_model_from_config(config, join(ldm_root,"models/ldm/cin256-v2/model.ckpt"))
     return model
+
+
+@torch.no_grad()
+def decode_batch(model, zs, batch_size=5):
+    with model.ema_scope():
+        x = []
+        for i in range(0, zs.shape[0], batch_size):
+            x.append(model.decode_first_stage(zs[i:i + batch_size]).cpu())
+        x = torch.cat(x, dim=0)
+        x = torch.clamp((x + 1.0) / 2.0, min=0.0, max=1.0)
+    return x
 #%%
 from ldm.models.diffusion.ddim import DDIMSampler
 
@@ -76,8 +87,8 @@ plt.imshow(ToPILImage()(dataset[-1][0]))
 plt.show()
 #%%
 savedir = r"/home/binxu/DL_Projects/ldm-imagenet/latents_save"
-for class_id in tqdm(range(25)):
-    class_mask = (torch.tensor(dataset.targets) == 0)
+for class_id in tqdm(range(1, 100)):
+    class_mask = (torch.tensor(dataset.targets) == class_id)
     class_dataset = Subset(dataset, class_mask.nonzero().flatten())
     dataloader = DataLoader(class_dataset, batch_size=32, shuffle=False, num_workers=8)
     zs = []
