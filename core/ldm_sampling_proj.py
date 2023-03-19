@@ -52,10 +52,10 @@ from einops import rearrange
 from torchvision.utils import make_grid
 
 classes = [25, 187, ]  # 448, 992  define classes to be sampled here
-n_samples_per_class = 6
+n_samples_per_class = 3
 
 ddim_steps = 51
-ddim_eta = 0.0
+ddim_eta = 0.0  # note eta = 0.0 is the deterministic version of DDIM, no noise added except the starting point.
 scale = 3.0  # for unconditional guidance
 
 all_samples = list()
@@ -97,6 +97,11 @@ grid = make_grid(grid, nrow=n_samples_per_class)
 # to image
 grid = 255. * rearrange(grid, 'c h w -> h w c').cpu().numpy()
 Image.fromarray(grid.astype(np.uint8))
+#%%
+import matplotlib.pyplot as plt
+plt.figure()
+plt.imshow(grid.astype(np.uint8))
+plt.show()
 #%%
 z_traj = torch.stack(samp_traj["x_inter"], dim=0).cpu()
 pred_z0_traj = torch.stack(samp_traj["pred_x0"], dim=0).cpu()
