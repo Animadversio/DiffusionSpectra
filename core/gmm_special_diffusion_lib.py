@@ -47,41 +47,42 @@ def GMM_scores(mus, sigma, x):
     return scores
 
 
-def beta(t):
-    return (0.02 * t + 0.0001 * (1 - t)) * 1000
+def beta(t, beta0=0.02, beta1=0.0001):
+    return (beta0 * t + beta1 * (1 - t)) * 1000
 
 
-def alpha(t):
+def alpha(t, beta0=0.02, beta1=0.0001):
     # return np.exp(- 1000 * (0.01 * t**2 + 0.0001 * t))
     return np.exp(- 10 * t**2 - 0.1 * t) * 0.9999
+    # return np.exp(- 1000 * (0.5 * (beta0 - beta1) * t**2 - beta1 * t)) * 0.9999
 
 
-def score_t(t, x, mus, sigma=1E-6):
+def score_t(t, x, mus, sigma=1E-6, alpha_fun=alpha):
     """Score function of p(x,t) according to VP SDE probability flow"""
-    alpha_t = alpha(t)
+    alpha_t = alpha_fun(t)
     sigma_t_sq = (1 - alpha_t**2) + sigma**2
     return GMM_scores(alpha_t * mus, sigma_t_sq, x[None, :])[0, :]
 
 
-def score_t_vec(t, x, mus, sigma=1E-6):
+def score_t_vec(t, x, mus, sigma=1E-6, alpha_fun=alpha):
     """Vectorized version of score_t"""
-    alpha_t = alpha(t)
+    alpha_t = alpha_fun(t)
     sigma_t_sq = (1 - alpha_t**2) + sigma**2
     return GMM_scores(alpha_t * mus, sigma_t_sq, x.T).T
 
 
-def f_VP(t, x, mus, sigma=1E-6):
+def f_VP(t, x, mus, sigma=1E-6, alpha_fun=alpha, beta_fun=beta):
     """Right hand side of the VP SDE probability flow ODE"""
-    alpha_t = alpha(t)
-    beta_t = beta(t)
+    alpha_t = alpha_fun(t)
+    beta_t = beta_fun(t)
     sigma_t_sq = (1 - alpha_t**2) + sigma**2
     return - beta_t * (x + GMM_scores(alpha_t * mus, np.sqrt(sigma_t_sq), x[None, :])[0, :])
 
 
-def f_VP_vec(t, x, mus, sigma=1E-6):
+def f_VP_vec(t, x, mus, sigma=1E-6, alpha_fun=alpha, beta_fun=beta):
     """Right hand side of the VP SDE probability flow ODE, vectorized version"""
-    alpha_t = alpha(t)
-    beta_t = beta(t)
+    alpha_t = alpha_fun(t)
+    beta_t = beta_fun(t)
     sigma_t_sq = (1 - alpha_t**2) + sigma**2
     return - beta_t * (x + GMM_scores(alpha_t * mus, np.sqrt(sigma_t_sq), x.T).T)
 
@@ -94,8 +95,8 @@ def f_VP_noise_vec(t, x, mus, sigma=1E-6, noise_std=0.01):
 
 
 from scipy.integrate import solve_ivp
-def exact_delta_gmm_reverse_diff(mus, sigma, xT, t_eval=None):
-    sol = solve_ivp(lambda t, x: f_VP_vec(t, x, mus, sigma=sigma),
+def exact_delta_gmm_reverse_diff(mus, sigma, xT, t_eval=None, alpha_fun=alpha, beta_fun=beta):
+    sol = solve_ivp(lambda t, x: f_VP_vec(t, x, mus, sigma=sigma, alpha_fun=alpha_fun, beta_fun=beta_fun),
                     (1, 0), xT, method="RK45",
                     vectorized=True, t_eval=t_eval)
     return sol.y[:, -1], sol
