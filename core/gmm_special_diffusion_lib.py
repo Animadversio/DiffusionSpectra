@@ -47,14 +47,21 @@ def GMM_scores(mus, sigma, x):
     return scores
 
 
-def beta(t, beta0=0.02, beta1=0.0001):
-    return (beta0 * t + beta1 * (1 - t)) * 1000
+def beta(t, beta0=0.02, beta1=0.0001, nT=1000):
+    # nT is the numebr of training time steps
+    return (beta0 * t + beta1 * (1 - t)) * nT
 
 
-def alpha(t, beta0=0.02, beta1=0.0001):
+def alpha(t, beta0=0.02, beta1=0.0001, nT=1000):
     # return np.exp(- 1000 * (0.01 * t**2 + 0.0001 * t))
-    return np.exp(- 10 * t**2 - 0.1 * t) * 0.9999
-    # return np.exp(- 1000 * (0.5 * (beta0 - beta1) * t**2 - beta1 * t)) * 0.9999
+    # return np.exp(- 10 * t**2 - 0.1 * t) * 0.9999
+    return np.exp(- nT * (0.5 * (beta0 - beta1) * t**2 + beta1 * t)) * (1 - beta1)
+
+
+# def alpha(t, beta0=0.02, beta1=0.0001):
+#     # return np.exp(- 1000 * (0.01 * t**2 + 0.0001 * t))
+#     return np.exp(- 10 * t**2 - 0.1 * t) * 0.9999
+#     # return np.exp(- 1000 * (0.5 * (beta0 - beta1) * t**2 - beta1 * t)) * 0.9999
 
 
 def score_t(t, x, mus, sigma=1E-6, alpha_fun=alpha):
