@@ -1,4 +1,5 @@
 import sys
+import os
 import torch
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,10 +16,7 @@ sys.path.append('/home/binxu/Github/taming-transformers')
 sys.path.append("/home/binxu/Github/latent-diffusion")
 #%%
 #@title loading utils
-import os
-import torch
 from omegaconf import OmegaConf
-from os.path import join
 from ldm.util import instantiate_from_config
 if os.environ["USER"] == "binxu":
     ldm_root = "/home/binxu/Github/latent-diffusion"
@@ -88,7 +86,6 @@ alphas_cumprod = ddim_ab["alphas_cumprod"]
 alphas_cumprod_prev = ddim_ab["alphas_cumprod_prev"]
 betas = ddim_ab["betas"]
 #%%
-# class_id = 1
 for class_id in range(0, 100):
     PCA_data = torch.load(join(PCAdir, f"class{class_id}_z_pca.pt"))
     U = PCA_data['U']
@@ -109,6 +106,7 @@ for class_id in range(0, 100):
         # pred_x0_imgs = (pred_x0 + 1) / 2
         # Analytical prediction
         alphacum_traj = alphas_cumprod[idx_traj].cpu()
+        alphacumprev_traj = alphas_cumprod_prev[idx_traj].cpu()
 
         zT_vec = z_traj[0:1].flatten(1)
         mu_vec = imgmean[None, :] #.flatten(1) #  * 2 - 1
@@ -159,6 +157,7 @@ for class_id in range(0, 100):
         plt.title("L2 norm of deviation between empirical and analytical prediction of x0hat")
         saveallforms(outdir, f"class{class_id:03d}_seed{RNDseed:03d}_x0hat_deviation_L2")
         plt.show()
+        raise NotImplementedError
         torch.save({"xt_traj": xt_traj,
                     "x0hatxt_traj": x0hatxt_traj,
                     "xttraj_coef": xttraj_coef, "xt0_residue": xt0_residue,
@@ -168,12 +167,77 @@ for class_id in range(0, 100):
                     "x0hat_pred_mse": x0hat_pred_mse,
                     }, join(outdir, f"class{class_id:03d}_seed{RNDseed:03d}_theory_coef.pt"))
         # raise NotImplementedError
-#%%
-for class_id in range(10):
+#%% sweep the mse and traj
+from collections import defaultdict
+xt_pred_mse_all = defaultdict(list)
+x0hat_pred_mse_all = defaultdict(list)
+for class_id in tqdm(range(100)):
     for RNDseed in range(10):
         theory_data = torch.load(join(outdir, f"class{class_id:03d}_seed{RNDseed:03d}_theory_coef.pt"))
         xt_pred_mse = theory_data['xt_pred_mse']
         x0hat_pred_mse = theory_data['x0hat_pred_mse']
+        xt_pred_mse_all[class_id].append(xt_pred_mse)
+        x0hat_pred_mse_all[class_id].append(x0hat_pred_mse)
+xt_pred_mse_all = {k: torch.stack(v) for k, v in xt_pred_mse_all.items()}
+x0hat_pred_mse_all = {k: torch.stack(v) for k, v in x0hat_pred_mse_all.items()}
+#%%
+def plot_mean_with_quantile(data_arr, quantile, label, color=None, ax=None):
+    if ax is None:
+        ax = plt.gca()
+    mean_vec = data_arr.mean(axis=0)
+    ax.plot(mean_vec, label=label, color=color, lw=2)  # ttraj,
+    ax.fill_between(range(len(mean_vec)),
+                    np.quantile(data_arr, quantile[0], axis=0),
+                    np.quantile(data_arr, quantile[1], axis=0),
+                    alpha=0.3, color=color)
+    return ax
+
+
+figoutdir = r"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\Figures\ldm_ImageNet"
+figoutdir = r"/home/binxu/Documents/ldm_ImageNet"
+os.makedirs(figoutdir, exist_ok=True)
+#%%
+plt.figure(figsize=(4, 3.5))
+for class_id in range(100):
+    # plt.plot(xt_pred_mse_all[class_id].mean(0), label=f"class {class_id}")
+    plot_mean_with_quantile(xt_pred_mse_all[class_id], [0.25, 0.75], f"class {class_id}",
+                            color=plt.cm.tab10(class_id % 10))
+# plt.legend()
+plt.ylabel("MSE of deviation")
+plt.xlabel("Time step (DDIM)")
+plt.title("Deviation of empirical from analytical xt\nLatent Diffusion ImageNet")
+plt.tight_layout()
+saveallforms(figoutdir, "xt_deviation_MSE_allclass")
+plt.show()
+#%%
+plt.figure(figsize=(4, 3.5))
+for class_id in range(100):
+    # plt.plot(x0hat_pred_mse_all[class_id].mean(0), label=f"class {class_id}")
+    plot_mean_with_quantile(x0hat_pred_mse_all[class_id], [0.25, 0.75], f"class {class_id}",
+                            color=plt.cm.tab10(class_id % 10))
+# plt.legend()
+plt.ylabel("MSE of deviation")
+plt.xlabel("Time step (DDIM)")
+plt.title("Deviation of empirical from analytical x0hat\nLatent Diffusion ImageNet")
+plt.tight_layout()
+saveallforms(figoutdir, "x0hat_deviation_MSE_allclass")
+plt.show()
+#%%
+theory_sumdir = r"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\Figures\Theory"
+plt.figure(figsize=(5, 4.5))
+Lmbda = 10
+for Lmbda in [0.01, 0.1, 1, 10, 100, 0.0, ]:
+    plt.plot(np.linspace(0,1,1000), torch.sqrt(Lmbda / (1 + (Lmbda - 1) * alphas_cumprod)).cpu(), label=f"Lambda={Lmbda}")
+plt.legend()
+# reverse x axis direction
+ax = plt.gca()
+ax.set_xlim(ax.get_xlim()[::-1])
+plt.ylabel("Amplification factor")
+plt.xlabel("Perturbation time t'")
+plt.title("Amplification factor of perturbation \nas a function of perturbing time ")
+saveallforms(theory_sumdir, "perturb_amplification_factor")
+plt.show()
+# collect final images as a row
 #%% Visualize the latent images
 for class_id in range(10, 100):
     for RNDseed in tqdm(range(10)):

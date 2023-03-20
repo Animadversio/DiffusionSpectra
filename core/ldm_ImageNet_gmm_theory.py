@@ -21,7 +21,7 @@ ddim_ab = torch.load(join(saveroot, "ddim_alphas_betas.pt"))
 alphas_cumprod = ddim_ab["alphas_cumprod"]
 alphas_cumprod_prev = ddim_ab["alphas_cumprod_prev"]
 betas = ddim_ab["betas"]
-#%%
+#%% Define the beta  and alpha functions for latent diffusion model Image Net.
 
 def ldm_beta_fun(t, beta0=0.0015, beta1=0.0195):
     return (t * math.sqrt(beta1) + (1 - t) * math.sqrt(beta0)) ** 2
@@ -31,6 +31,7 @@ def ldm_alphacumprod_fun(t, beta0=0.0015, beta1=0.0195):
     return np.exp(- 1000 / 3 / (math.sqrt(beta1) - math.sqrt(beta0)) *
                    (((math.sqrt(beta1) - math.sqrt(beta0)) * t + math.sqrt(beta0)) ** 3 - beta0 ** 1.5)) * 0.9985
 
+
 def ldm_alpha_fun(t, beta0=0.0015, beta1=0.0195):
     return np.exp(- 500 / 3 / (math.sqrt(beta1) - math.sqrt(beta0)) *
                    (((math.sqrt(beta1) - math.sqrt(beta0)) * t + math.sqrt(beta0)) ** 3 - beta0 ** 1.5)) * 0.9992
@@ -38,16 +39,16 @@ def ldm_alpha_fun(t, beta0=0.0015, beta1=0.0195):
 
 tticks = torch.linspace(0, 1, 1000)
 plt.figure(figsize=(8, 4))
-plt.subplot(1,3,1)
+plt.subplot(1, 3, 1)
 plt.plot(tticks, betas.cpu(), lw=2.5, alpha=0.5, label="ldm")
 plt.plot(tticks, ldm_beta_fun(tticks), lw=2.5, alpha=0.5, label="analytical")
 plt.title("beta")
-plt.subplot(1,3,2)
+plt.subplot(1, 3, 2)
 plt.plot(tticks, alphas_cumprod.cpu(), lw=2.5, alpha=0.5, label="ldm")
 plt.plot(tticks, ldm_alphacumprod_fun(tticks), lw=2.5, alpha=0.5, label="analytical")
 plt.legend()
 plt.title("alpha cumprod")
-plt.subplot(1,3,3)
+plt.subplot(1, 3, 3)
 plt.plot(tticks, alphas_cumprod.cpu().sqrt(), lw=2.5, alpha=0.5, label="ldm")
 plt.plot(tticks, ldm_alpha_fun(tticks), lw=2.5, alpha=0.5, label="analytical")
 plt.legend()
