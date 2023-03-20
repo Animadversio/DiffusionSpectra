@@ -27,7 +27,8 @@ def xt_ode_solution(xt0, x_mean, U, Lambdas, alphacum_traj, t0=0):
         x_mean: mean of the distribution, shape 1 x n
         U: eigenvectors of the covariance matrix, each column is an eigenvector.
         Lambdas: eigenvalues of the covariance matrix, 1d tensor
-        alphacum_traj: cumulative sum of the alphas
+        alphacum_traj: cumulative sum of the alphas, this is the alphacumprod in ddim, ddpm,
+            the alpha in our paper in the square root of this
         t0: initial time, default 0, it should be integer to index alphacum_traj.
     """
     # if xt0.ndim == 1:
@@ -62,7 +63,8 @@ def x0hat_ode_solution(xt0, x_mean, U, Lambdas, alphacum_traj, t0=0):
         x_mean: mean of the distribution, shape 1 x n
         U: eigenvectors of the covariance matrix, each column is an eigenvector.
         Lambdas: eigenvalues of the covariance matrix, 1d tensor
-        alphacum_traj: cumulative sum of the alphas
+        alphacum_traj: cumulative sum of the alphas, this is the alphacumprod in ddim, ddpm,
+            the alpha in our paper in the square root of this
         t0: initial time, default 0, it should be integer to index alphacum_traj.
     """
     # if xt0.ndim == 1:
