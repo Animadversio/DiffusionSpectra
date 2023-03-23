@@ -147,4 +147,4 @@ def demo_delta_gmm_diffusion(nreps=500, mus=None, sigma=1E-5):
 
 
 if __name__ == "__main__":
-    demo_delta_gmm_diffusion(nreps=500)
+    figh = demo_delta_gmm_diffusion(nreps=500)
