@@ -6,15 +6,27 @@ def proj2subspace(A, b):
     """ Project b onto the subspace spanned by A
     Assume, A, b are both row vectors
     """
-    return (A.T @ (torch.linalg.inv(A@A.T) @ (A @ b.T))).T
+    return b @ torch.pinverse(A) @ A  # (A.T @ (torch.linalg.inv(A@A.T) @ (A @ b.T))).T
 
 
 def proj2orthospace(A, b):
-    """ Project b onto the subspace spanned by A
+    """ Project b onto the subspace orthogonal to that spanned by A
     Assume, A, b are both row vectors
     """
     return b - proj2subspace(A, b)
 
+def proj2subspace_old(A, b):
+    """ Project b onto the subspace spanned by A
+    Assume, A, b are both row vectors
+    """
+    return (A.T @ (torch.linalg.inv(A@A.T) @ (A @ b.T))).T
+
+
+def proj2orthospace_old(A, b):
+    """ Project b onto the subspace orthogonal to that spanned by A
+    Assume, A, b are both row vectors
+    """
+    return b - proj2subspace_old(A, b)
 
 def subspace_variance(X, subspace):
     """ Calculate the variance of X projected onto the subspace
