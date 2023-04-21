@@ -4,10 +4,16 @@ import numpy as np
 from core.gaussian_mixture_lib import GaussianMixture, GaussianMixture_torch
 from core.gmm_special_diffusion_lib import demo_delta_gmm_diffusion
 from core.gmm_general_diffusion_lib import demo_gaussian_mixture_diffusion, _random_orthogonal_matrix
-#%%
+from os.path import join
+from core.utils.plot_utils import saveallforms
+figdir = r"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\Figures\GMM_2d_demo"
+#%% linear manifold diffusion
 mus = np.linspace(-1, 1, 101)[:, None]
 mus = np.concatenate([mus, mus], axis=1)
-demo_delta_gmm_diffusion(nreps=500, mus=mus, sigma=1E-5)
+figh_lin = demo_delta_gmm_diffusion(nreps=500, mus=mus, sigma=1E-5)
+saveallforms(figdir, "gmm_lin_diffusion", figh_lin)
+# figh_lin.savefig(join(figdir, "gmm_lin_diffusion.png"))
+# figh_lin.savefig(join(figdir, "gmm_lin_diffusion.pdf"))
 #%%
 mus = np.array([[0, -1],
                 [-.8, 0.5],
@@ -34,9 +40,12 @@ cov_gmm = np.cov(gmm_samples.T)
 Lambda_gmm, U_gmm = np.linalg.eigh(cov_gmm)
 
 figh = demo_gaussian_mixture_diffusion(nreps=500, mus=mus, Us=Us, Lambdas=Lambdas, weights=None)
-figh.gca().scatter(gmm_samples[:, 0], gmm_samples[:, 1], s=100, c='k')
+# figh.gca().scatter(gmm_samples[:, 0], gmm_samples[:, 1], s=100, c='k') # direct samples from gmm
+saveallforms(figdir, "gmm_general_3_components_diffusion", figh)
 figh.show()
 #%%
 figh2 = demo_delta_gmm_diffusion(nreps=500, mus=gmm_samples, sigma=1E-4)
+saveallforms(figdir, "gmm_delta_diffusion", figh2)
 #%%
 figh3 = demo_gaussian_mixture_diffusion(nreps=500, mus=mean_gmm, Us=U_gmm[None], Lambdas=Lambda_gmm[None], weights=None)
+saveallforms(figdir, "gaussian_unimodal_diffusion", figh3)
