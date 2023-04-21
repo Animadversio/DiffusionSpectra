@@ -1,3 +1,4 @@
+import math
 import os
 
 import matplotlib.pyplot as plt
@@ -104,6 +105,25 @@ def x0hat_proj_coef(Lambda, alphacum_traj):
                  (1 + (Lambda - 1) * alphacum_traj[0])).sqrt()
     return coef_traj
 
+
+def residual_approx_coef(Lambda, alphacum_traj):
+    """ Projection coefficient for x0hat on eigenvector of value Lambda """
+    if type(Lambda) is not torch.Tensor:
+        Lambda = torch.tensor(Lambda).float()
+    coef_traj = (alphacum_traj * Lambda + 1 - alphacum_traj).sqrt() -\
+                (alphacum_traj * Lambda).sqrt() - \
+                (1 - alphacum_traj).sqrt()
+    return coef_traj
+
+
+def residual_approx_coef_div_alpha(Lambda, alphacum_traj):
+    """ Projection coefficient for x0hat on eigenvector of value Lambda """
+    if type(Lambda) is not torch.Tensor:
+        Lambda = torch.tensor(Lambda).float()
+    coef_traj = (alphacum_traj * Lambda + 1 - alphacum_traj).sqrt() - \
+                (alphacum_traj * Lambda).sqrt() - \
+                (1 - alphacum_traj).sqrt()
+    return coef_traj / alphacum_traj.sqrt()
 #%%
 outdir = r"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\AnalyticalNote"
 plt.figure(figsize=(5, 4))
@@ -120,6 +140,52 @@ saveallforms(figdir, f"{model_id_short}_tilde_Lambda_diag_modul")
 saveallforms(outdir, f"{model_id_short}_tilde_Lambda_diag_modul")
 plt.show()
 
+#%%
+outdir = r"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\AnalyticalNote"
+plt.figure(figsize=(5, 4))
+for Lambda in [0.01, 0.1, 1, 10, 100, 0.0]:
+    Lambda = torch.tensor(Lambda).float()
+    coef_traj = residual_approx_coef(Lambda, alphacum_traj)# xtproj_coef(Lambda, alphacum_traj)
+    plt.plot(coef_traj,
+                 label=f"Var={Lambda:.2f}" if Lambda < 1 else f"Var={Lambda:.0f}")
+plt.ylabel("coefficient")
+plt.xlabel("time step")
+plt.title("Residue of xt outside the rotation subspace along U_k with different variance")
+plt.legend()
+saveallforms(figdir, f"{model_id_short}_rot_residual_approx_coef")
+saveallforms(outdir, f"{model_id_short}_rot_residual_approx_coef")
+plt.show()
+#%%
+outdir = r"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\AnalyticalNote"
+plt.figure(figsize=(5, 4))
+for Lambda in [0.01, 0.1, 1, 10, 100, 0.0]:
+    Lambda = torch.tensor(Lambda).float()
+    coef_traj = residual_approx_coef_div_alpha(Lambda, alphacum_traj)# xtproj_coef(Lambda, alphacum_traj)
+    plt.plot(coef_traj,
+                 label=f"Var={Lambda:.2f}" if Lambda < 1 else f"Var={Lambda:.0f}")
+plt.ylabel("coefficient")
+plt.xlabel("time step")
+plt.title("Residue of xt outside the rotation subspace along U_k with different variance, normalized by alpha t")
+plt.legend()
+saveallforms(figdir, f"{model_id_short}_rot_residual_approx_coef_div_alpha")
+saveallforms(outdir, f"{model_id_short}_rot_residual_approx_coef_div_alpha")
+plt.show()
+#%%
+import math
+outdir = r"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\AnalyticalNote"
+plt.figure(figsize=(5, 4))
+for Lambda in [0.01, 0.1, 1, 10, 100, 0.0]:
+    Lambda = torch.tensor(Lambda).float()
+    coef_traj = residual_approx_coef_div_alpha(Lambda, alphacum_traj) / math.sqrt(Lambda)# xtproj_coef(Lambda, alphacum_traj)
+    plt.plot(coef_traj,
+                 label=f"Var={Lambda:.2f}" if Lambda < 1 else f"Var={Lambda:.0f}")
+plt.ylabel("coefficient norm. by std ")
+plt.xlabel("time step")
+plt.title("Residue of xt outside the rotation subspace along U_k with different variance, normalized by alpha t")
+plt.legend()
+saveallforms(figdir, f"{model_id_short}_rot_residual_approx_coef_div_alpha_norm")
+saveallforms(outdir, f"{model_id_short}_rot_residual_approx_coef_div_alpha_norm")
+plt.show()
 # %%
 plt.figure(figsize=(5, 4))
 for Lambda in [0.01, 0.1, 1, 10, 100, 0.0]:
