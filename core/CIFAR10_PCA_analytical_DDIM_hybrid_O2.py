@@ -1,3 +1,5 @@
+import sys
+sys.path.append("/home/biw905/Github/DiffusionSpectra")
 import os
 from tqdm import tqdm
 import matplotlib.pyplot as plt
