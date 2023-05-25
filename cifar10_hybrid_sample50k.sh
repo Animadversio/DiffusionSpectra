@@ -4,7 +4,7 @@
 #SBATCH -t 7:00:00
 #SBATCH --gres=gpu:1
 #SBATCH --mem=16G
-#SBATCH --array=1-8
+#SBATCH --array=1-10
 #SBATCH --mail-user=binxu_wang@hms.harvard.edu
 #SBATCH -o cifar_hyrbid_samp_%j.out
 
@@ -19,6 +19,8 @@ param_list=\
 --seed_start 36000 --seed_end 41000
 --seed_start 41000 --seed_end 46000
 --seed_start 46000 --seed_end 51000
+--seed_start 51000 --seed_end 56000
+--seed_start 56000 --seed_end 61000
 '
 
 export unit_name="$(echo "$param_list" | head -n $SLURM_ARRAY_TASK_ID | tail -1)"
