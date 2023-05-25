@@ -2,6 +2,8 @@ from os.path import join
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
+from scipy.interpolate import interp1d
+
 import torch
 from core.utils.plot_utils import saveallforms
 from core.utils.montage_utils import make_grid_T
@@ -425,7 +427,6 @@ ddimdata["x_t"].shape  # (50, 1, 1, 28, 28)
 analydata['sol_uni'].y.shape  # (784, 51)
 #%%
 # use the entries of alphacumprod_ddim to find the index in alphacumprod_gmm and interpolate the value
-from scipy.interpolate import interp1d
 alphacumprod_ddim_interp = interp1d(alphacumprod_gmm, ttraj)
 RNDseed = 0
 analydata = pkl.load(open(join(savedir, f"uncond_RND{RNDseed:03d}_all.pkl"), "rb"))
@@ -449,15 +450,92 @@ xt_ddim_aug = np.concatenate([xt_uni[:1], xt_ddim], axis=0)
 xt_uni_remap = interp1d(alphacumprod_gmm[::-1], xt_uni, axis=0, kind="linear")(alphacumprod_ddim[::-1])
 xt_gmm_remap = interp1d(alphacumprod_gmm[::-1], xt_gmm, axis=0, kind="linear")(alphacumprod_ddim[::-1])
 xt_exact_remap = interp1d(alphacumprod_gmm[::-1], xt_exact, axis=0, kind="linear")(alphacumprod_ddim[::-1])
-#%%
-
-
 
 
 #%% Un Conditional CIFAR
 model_cond = "cifar_uncond"
 savedir = join(saveroot, r"cifar_uncond_gmm_exact")
+savedir = join(saveroot, r"cifar_uncond_gmm_exact_normalized")
 dist_gmm2uni_arr, dist_exact2uni_arr, dist_exact2gmm_arr = sweep_RNDseed_dist(savedir, RNDrange=range(100))
+#%%
+plt.figure(figsize=(4, 3.5))
+plot_mean_with_quantile(dist_gmm2uni_arr, (0.25, 0.75), "GMM", color="C0", ax=None)
+plot_mean_with_quantile(dist_exact2uni_arr, (0.25, 0.75), "Exact", color="C1", ax=None)
+plt.title("Deviation of uniGaussian from\nGMM and Exact sampling")
+plt.legend()
+plt.ylabel("Mean Squared Error")
+plt.xlabel("Time step (DDIM)")
+plt.tight_layout()
+saveallforms(figoutdir, f"{model_cond}_uncond_traj_deviation_unimodal_quartile", )
+plt.show()
+#%%
+from diffusers import DDIMPipeline, PNDMPipeline
+model_id = "google/ddpm-cifar10-32" # most popular
+model_id_short = model_id.split("/")[-1]
+pipe = DDIMPipeline.from_pretrained(model_id)  # you can replace DDPMPipeline with DDIMPipeline or PNDMPipeline for faster inference
+pipe.scheduler.set_timesteps(51)
+alphacum_traj = pipe.scheduler.alphas_cumprod[pipe.scheduler.timesteps]
+#%%
+ddim_root = r"F:\insilico_exps\Diffusion_traj\ddpm-cifar10-32_scheduler\DDIM"
+def sweep_ddim_hgf_traj_remap_dist(savedir, alpha_t_ddim, RNDrange=range(100)):
+    ttraj = np.linspace(1, 0, 51)
+    # alphacumprod_ddim = alpha(ttraj, nT=400)
+    # alpha_t_ddim = np.sqrt(alphacumprod_ddim)  # sqrt to make alphacumprod in ddim, ddpm paper our definetion of alpha
+    alpha_t_gmm = alpha(ttraj, nT=1000)
+    dist_uni2ddim_arr = []
+    dist_gmm2ddim_arr = []
+    dist_exact2ddim_arr = []
+    for RNDseed in tqdm(RNDrange):
+        analydata = pkl.load(open(join(savedir, f"uncond_RND{RNDseed:03d}_all.pkl"), "rb"))
+        ddimdata = torch.load(join(ddim_root, f"seed{RNDseed}_np", f"state_reservoir.pt"))
+        # ddimdata = pkl.load(open(join(ddim_root, f"seed{RNDseed}_np", f"state_reservoir.pt"), "rb"))
+        xt_ddim = ddimdata["latents_traj"].numpy()
+        xt_ddim = xt_ddim.reshape(xt_ddim.shape[0], -1)[1:]
+        xt_ddim = xt_ddim  # in this version , xt are not normalized
+        sol_uni = analydata["sol_uni"]
+        sol_gmm = analydata["sol_gmm"]
+        sol_exact = analydata["sol_exact"]
+        ttraj = sol_uni.t
+        xt_uni = sol_uni.y.T
+        xt_gmm = sol_gmm.y.T
+        xt_exact = sol_exact.y.T
+        # interp_alpha_val = np.minimum(np.sqrt(alphacumprod_ddim[::-1]), 0.9999)  # 0.999 to avoid extrapolation
+        interp_alpha_val = alpha_t_ddim  # 0.999 to avoid extrapolation
+        xt_uni_remap = interp1d(alpha_t_gmm, xt_uni, axis=0, kind="linear", fill_value="extrapolate")(interp_alpha_val)
+        xt_gmm_remap = interp1d(alpha_t_gmm, xt_gmm, axis=0, kind="linear", fill_value="extrapolate")(interp_alpha_val)
+        xt_exact_remap = interp1d(alpha_t_gmm, xt_exact, axis=0, kind="linear", fill_value="extrapolate")(interp_alpha_val)
+        dist_uni2ddim = ((xt_uni_remap - xt_ddim)**2).mean(axis=1) #[1:]
+        dist_gmm2ddim = ((xt_gmm_remap - xt_ddim)**2).mean(axis=1) #[1:]
+        dist_exact2ddim = ((xt_exact_remap - xt_ddim)**2).mean(axis=1) #[1:]
+        dist_uni2ddim_arr.append(dist_uni2ddim)
+        dist_gmm2ddim_arr.append(dist_gmm2ddim)
+        dist_exact2ddim_arr.append(dist_exact2ddim)
+    dist_uni2ddim_arr = np.array(dist_uni2ddim_arr)
+    dist_gmm2ddim_arr = np.array(dist_gmm2ddim_arr)
+    dist_exact2ddim_arr = np.array(dist_exact2ddim_arr)
+    return dist_uni2ddim_arr, dist_gmm2ddim_arr, dist_exact2ddim_arr
+
+
+model_cond = "cifar_uncond_normed"
+savedir = join(saveroot, r"cifar_uncond_gmm_exact_normalized")
+alphacum_traj = pipe.scheduler.alphas_cumprod[pipe.scheduler.timesteps]
+alpha_t_ddim = np.sqrt(alphacum_traj)  # sqrt to make alphacumprod in ddim, ddpm paper our definetion of alpha
+dist_uni2ddim_arr, dist_gmm2ddim_arr, dist_exact2ddim_arr = sweep_ddim_hgf_traj_remap_dist(savedir,alpha_t_ddim, RNDrange=range(200))
+#%%
+
+outdir = r"E:\OneDrive - Harvard University\ICML2023_DiffGeometry\Figures\TheoryValCIFAR_Application"
+plt.figure(figsize=(3.5, 3.75))
+plot_mean_with_quantile(dist_uni2ddim_arr, (0.25, 0.75), "Gauss2DDIM", color="C0", ax=None)
+plot_mean_with_quantile(dist_gmm2ddim_arr, (0.25, 0.75), "GMM2DDIM", color="C1", ax=None)
+plot_mean_with_quantile(dist_exact2ddim_arr, (0.25, 0.75), "Exact2DDIM", color="C2", ax=None)
+# plt.title("Deviation of DDIM trajectory from\n analytical approximations\n(without nomralization bug)")
+plt.title("Deviation of DDIM trajectory from\n analytical approximations")
+plt.legend()
+plt.ylabel("Mean Squared Error")
+plt.xlabel("Time step (DDIM)")
+plt.tight_layout()
+saveallforms([figoutdir,outdir], f"{model_cond}_unicond_traj_deviation_DDIMremap_quartile", )
+plt.show()
 #%%
 def sweep_cond_RNDseed_dist(savedir, class_id, RNDrange=range(100)):
     dist_exact2uni_arr = []
@@ -481,6 +559,7 @@ for class_id in range(10):
     dist_exact2uni_cond = sweep_cond_RNDseed_dist(savedir, class_id, RNDrange=range(100))
     dist_exact2uni_dict[class_id] = dist_exact2uni_cond
 #%%
+
 fig, ax = plt.subplots(1, 1, figsize=(4, 3.5))
 for class_id in range(10):
     plot_mean_with_quantile(dist_exact2uni_dict[class_id],
