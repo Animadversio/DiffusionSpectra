@@ -137,7 +137,7 @@ for class_id in trange(10):
 outdir = r"/n/scratch3/users/b/biw905/Diffusion_traj/cifar_uncond_gmm_exact"
 os.makedirs(outdir, exist_ok=True)
 t_eval = np.linspace(1, 0, 51)
-for RNDseed in trange(200):
+for RNDseed in trange(100, 200):
     np.random.seed(RNDseed)
     xT = np.random.randn(ndim)
     x0_uni, sol_uni = exact_general_gmm_reverse_diff(mu_all[None], U_all[None], Lambda_all[None], xT, sigma=1E-4, t_eval=t_eval)

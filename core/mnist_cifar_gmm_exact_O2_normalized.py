@@ -86,13 +86,14 @@ xtsr = torch.stack([ToTensor()(img) for img, _ in dataset], dim=0)
 ytsr = torch.stack([torch.tensor(label) for _, label in dataset], dim=0)
 imgshape = xtsr.shape[1:]
 ndim = np.prod(imgshape)
+xtsr = xtsr * 2 - 1  # normalize to [-1, 1] to match the DDIM model fit to CIFAR10
 #%%
 mu_cls = []
 cov_cls = []
 Lambda_cls = []
 U_cls = []
 weights = []
-for label in range(10):
+for label in trange(10):
     xarr = xtsr[ytsr == label, :, :].flatten(1).numpy()
     mu, cov, Lambda, U = mean_cov_from_xarr(xarr)
     assert np.allclose(cov, U @ np.diag(Lambda) @ U.T)
@@ -111,7 +112,8 @@ xarr_all = xtsr.flatten(1).numpy()
 mu_all, cov_all, Lambda_all, U_all = mean_cov_from_xarr(xarr_all)
 
 #%%
-outdir = r"/n/scratch3/users/b/biw905/Diffusion_traj/cifar_cond_gmm_exact"
+# outdir = r"/n/scratch3/users/b/biw905/Diffusion_traj/cifar_cond_gmm_exact_normalized"
+outdir = r"/home/binxu/insilico_exps/Diffusion_traj/cifar_cond_gmm_exact_normalized"
 os.makedirs(outdir, exist_ok=True)
 t_eval = np.linspace(1, 0, 51)
 for class_id in trange(10):
@@ -123,8 +125,8 @@ for class_id in trange(10):
         xT = np.random.randn(ndim)
         x0_gauss, sol_gauss = exact_general_gmm_reverse_diff(mu_sing[None], U_sing[None], Lambda_sing[None], xT, sigma=1E-4, t_eval=t_eval)
         x0_exact, sol_exact = exact_delta_gmm_reverse_diff(mus, sigma=1E-4, xT=xT, t_eval=t_eval)
-        x0img_gauss = x0_gauss.reshape(imgshape).transpose((1, 2, 0)).clip(0, 1)
-        x0img_exact = x0_exact.reshape(imgshape).transpose((1, 2, 0)).clip(0, 1)
+        x0img_gauss = ((1 + x0_gauss)/2).reshape(imgshape).transpose((1, 2, 0)).clip(0, 1)
+        x0img_exact = ((1 + x0_exact)/2).reshape(imgshape).transpose((1, 2, 0)).clip(0, 1)
         plt.imsave(join(outdir, f"class{class_id}_RND{RNDseed:03d}_gauss.png"), x0img_gauss)
         plt.imsave(join(outdir, f"class{class_id}_RND{RNDseed:03d}_exact.png"), x0img_exact)
         plt.imsave(join(outdir, f"class{class_id}_RND{RNDseed:03d}_cmb.png"),
@@ -132,20 +134,20 @@ for class_id in trange(10):
         pkl.dump({"x0_gauss": x0_gauss, "x0_exact": x0_exact,
                   "sol_gauss": sol_gauss, "sol_exact": sol_exact},
                  open(join(outdir, f"class{class_id}_RND{RNDseed:03d}_all.pkl"), "wb"))
-
+        raise RuntimeError
 #%%
-outdir = r"/n/scratch3/users/b/biw905/Diffusion_traj/cifar_uncond_gmm_exact"
+outdir = r"/home/binxu/insilico_exps/Diffusion_traj/cifar_uncond_gmm_exact_normalized"
 os.makedirs(outdir, exist_ok=True)
 t_eval = np.linspace(1, 0, 51)
-for RNDseed in trange(100, 200):
+for RNDseed in trange(0, 200):
     np.random.seed(RNDseed)
     xT = np.random.randn(ndim)
     x0_uni, sol_uni = exact_general_gmm_reverse_diff(mu_all[None], U_all[None], Lambda_all[None], xT, sigma=1E-4, t_eval=t_eval)
     x0_gmm, sol_gmm = exact_general_gmm_reverse_diff(mu_cls, U_cls, Lambda_cls, xT, sigma=1E-4, t_eval=t_eval)
     x0_exact, sol_exact = exact_delta_gmm_reverse_diff(xarr_all, sigma=1E-4, xT=xT, t_eval=t_eval)
-    x0img_uni = x0_uni.reshape(imgshape).transpose((1, 2, 0)).clip(0, 1)
-    x0img_gmm = x0_gmm.reshape(imgshape).transpose((1, 2, 0)).clip(0, 1)
-    x0img_exact = x0_exact.reshape(imgshape).transpose((1, 2, 0)).clip(0, 1)
+    x0img_uni = ((1 + x0_uni) / 2).reshape(imgshape).transpose((1, 2, 0)).clip(0, 1)
+    x0img_gmm = ((1 + x0_gmm) / 2).reshape(imgshape).transpose((1, 2, 0)).clip(0, 1)
+    x0img_exact = ((1 + x0_exact) / 2).reshape(imgshape).transpose((1, 2, 0)).clip(0, 1)
     # save
     plt.imsave(join(outdir, f"uncond_RND{RNDseed:03d}_unigauss.png"), x0img_uni)
     plt.imsave(join(outdir, f"uncond_RND{RNDseed:03d}_gmm.png"), x0img_gmm)
